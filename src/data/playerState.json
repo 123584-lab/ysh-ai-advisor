@@ -1,0 +1,13 @@
+{
+  "hallLevel": 4,
+  "prestige": 760,
+  "territoryCount": 7,
+  "troopCount": 3,
+  "mainTroopPower": 12800,
+  "season": "冬季",
+  "wood": 18500,
+  "stone": 12600,
+  "food": 23000,
+  "iron": 9800,
+  "ownedHeroes": ["关羽", "张飞", "赵云", "刘备"]
+}

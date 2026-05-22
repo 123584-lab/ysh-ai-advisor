@@ -1,0 +1,200 @@
+[
+  {
+    "id": "guan-yu",
+    "name": "关羽",
+    "camp": "蜀",
+    "troopType": "骑兵",
+    "role": "输出",
+    "rarity": "传说",
+    "tags": ["爆发", "突击", "破防", "主将"]
+  },
+  {
+    "id": "zhang-fei",
+    "name": "张飞",
+    "camp": "蜀",
+    "troopType": "步兵",
+    "role": "前排",
+    "rarity": "传说",
+    "tags": ["承伤", "控制", "反击", "开荒"]
+  },
+  {
+    "id": "zhao-yun",
+    "name": "赵云",
+    "camp": "蜀",
+    "troopType": "骑兵",
+    "role": "输出",
+    "rarity": "传说",
+    "tags": ["突击", "生存", "追击", "开荒"]
+  },
+  {
+    "id": "zhuge-liang",
+    "name": "诸葛亮",
+    "camp": "蜀",
+    "troopType": "弓兵",
+    "role": "辅助",
+    "rarity": "传说",
+    "tags": ["谋略", "控制", "减益", "续航"]
+  },
+  {
+    "id": "huang-zhong",
+    "name": "黄忠",
+    "camp": "蜀",
+    "troopType": "弓兵",
+    "role": "输出",
+    "rarity": "史诗",
+    "tags": ["远程", "爆发", "单点", "后排"]
+  },
+  {
+    "id": "ma-chao",
+    "name": "马超",
+    "camp": "蜀",
+    "troopType": "骑兵",
+    "role": "输出",
+    "rarity": "传说",
+    "tags": ["冲锋", "先手", "爆发", "追击"]
+  },
+  {
+    "id": "liu-bei",
+    "name": "刘备",
+    "camp": "蜀",
+    "troopType": "步兵",
+    "role": "辅助",
+    "rarity": "传说",
+    "tags": ["治疗", "增益", "续航", "主公"]
+  },
+  {
+    "id": "cao-cao",
+    "name": "曹操",
+    "camp": "魏",
+    "troopType": "骑兵",
+    "role": "辅助",
+    "rarity": "传说",
+    "tags": ["增益", "机动", "统帅", "减伤"]
+  },
+  {
+    "id": "xiahou-dun",
+    "name": "夏侯惇",
+    "camp": "魏",
+    "troopType": "步兵",
+    "role": "前排",
+    "rarity": "史诗",
+    "tags": ["承伤", "反击", "守城", "稳定"]
+  },
+  {
+    "id": "zhang-liao",
+    "name": "张辽",
+    "camp": "魏",
+    "troopType": "骑兵",
+    "role": "输出",
+    "rarity": "传说",
+    "tags": ["突击", "先手", "破阵", "集火"]
+  },
+  {
+    "id": "sima-yi",
+    "name": "司马懿",
+    "camp": "魏",
+    "troopType": "弓兵",
+    "role": "输出",
+    "rarity": "传说",
+    "tags": ["谋略", "后期", "减益", "爆发"]
+  },
+  {
+    "id": "guo-jia",
+    "name": "郭嘉",
+    "camp": "魏",
+    "troopType": "弓兵",
+    "role": "辅助",
+    "rarity": "史诗",
+    "tags": ["控制", "谋略", "减益", "辅助"]
+  },
+  {
+    "id": "sun-quan",
+    "name": "孙权",
+    "camp": "吴",
+    "troopType": "弓兵",
+    "role": "辅助",
+    "rarity": "传说",
+    "tags": ["增益", "统帅", "远程", "均衡"]
+  },
+  {
+    "id": "zhou-yu",
+    "name": "周瑜",
+    "camp": "吴",
+    "troopType": "弓兵",
+    "role": "输出",
+    "rarity": "传说",
+    "tags": ["谋略", "灼烧", "群攻", "后排"]
+  },
+  {
+    "id": "lu-xun",
+    "name": "陆逊",
+    "camp": "吴",
+    "troopType": "弓兵",
+    "role": "输出",
+    "rarity": "传说",
+    "tags": ["谋略", "持续伤害", "灼烧", "群攻"]
+  },
+  {
+    "id": "taishi-ci",
+    "name": "太史慈",
+    "camp": "吴",
+    "troopType": "弓兵",
+    "role": "输出",
+    "rarity": "史诗",
+    "tags": ["连击", "远程", "追击", "单点"]
+  },
+  {
+    "id": "gan-ning",
+    "name": "甘宁",
+    "camp": "吴",
+    "troopType": "步兵",
+    "role": "输出",
+    "rarity": "史诗",
+    "tags": ["爆发", "破防", "奇袭", "攻城"]
+  },
+  {
+    "id": "lv-bu",
+    "name": "吕布",
+    "camp": "群",
+    "troopType": "骑兵",
+    "role": "输出",
+    "rarity": "传说",
+    "tags": ["爆发", "决斗", "突击", "高风险"]
+  },
+  {
+    "id": "diao-chan",
+    "name": "貂蝉",
+    "camp": "群",
+    "troopType": "弓兵",
+    "role": "辅助",
+    "rarity": "史诗",
+    "tags": ["控制", "减益", "扰乱", "辅助"]
+  },
+  {
+    "id": "dong-zhuo",
+    "name": "董卓",
+    "camp": "群",
+    "troopType": "步兵",
+    "role": "前排",
+    "rarity": "史诗",
+    "tags": ["承伤", "恢复", "压制", "前排"]
+  },
+  {
+    "id": "yuan-shao",
+    "name": "袁绍",
+    "camp": "群",
+    "troopType": "弓兵",
+    "role": "辅助",
+    "rarity": "史诗",
+    "tags": ["统帅", "增益", "群攻", "集结"]
+  },
+  {
+    "id": "hua-tuo",
+    "name": "华佗",
+    "camp": "群",
+    "troopType": "步兵",
+    "role": "辅助",
+    "rarity": "史诗",
+    "tags": ["治疗", "续航", "减伤", "开荒"]
+  }
+]
