@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import {
   advisorAnswerToContent as answerToContent,
   advisorContentToAnswer as contentToAnswer,
@@ -160,7 +160,7 @@ const initialHistory: ChatHistory[] = [
   { role: "advisor", content: initialAnswerContent, timestamp: Date.now() },
 ];
 
-export default function App() {
+function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
   const [activeCategory, setActiveCategory] = useState<AdvisorCategory>("新手开荒");
   const [input, setInput] = useState("");
   const [playerState, setPlayerState] = useState<PlayerState>(() => getPlayerState());
@@ -224,9 +224,30 @@ export default function App() {
     setIsEditingMilitary(false);
   }
 
+  useEffect(() => {
+    if (!embedded) return;
+
+    const params = new URLSearchParams(window.location.search);
+    console.log("忆山河 AI军师 WebView 参数", {
+      playerId: params.get("playerId"),
+      stage: params.get("stage"),
+      channel: params.get("channel"),
+    });
+  }, [embedded]);
+
   return (
-    <main className="flex h-screen w-screen items-center justify-center overflow-hidden bg-[#15100b] p-3 text-[#34210f]">
-      <section className="relative aspect-video h-full max-h-[calc(100vh-24px)] w-full max-w-[calc((100vh-24px)*16/9)] overflow-hidden border border-[#916330] bg-[#d8b574] shadow-2xl shadow-black/60">
+    <main
+      className={`flex h-screen w-screen items-center justify-center overflow-hidden bg-[#15100b] text-[#34210f] ${
+        embedded ? "p-0" : "p-3"
+      }`}
+    >
+      <section
+        className={`relative aspect-video h-full w-full overflow-hidden border border-[#916330] bg-[#d8b574] shadow-2xl shadow-black/60 ${
+          embedded
+            ? "max-h-screen max-w-[calc(100vh*16/9)]"
+            : "max-h-[calc(100vh-24px)] max-w-[calc((100vh-24px)*16/9)]"
+        }`}
+      >
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(68,37,16,0.12)_1px,transparent_1px),linear-gradient(0deg,rgba(68,37,16,0.10)_1px,transparent_1px)] bg-[size:40px_40px]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_36%,rgba(255,238,190,0.62),rgba(196,139,66,0.22)_55%,rgba(35,21,12,0.26))]" />
         <div className="absolute inset-x-0 top-0 h-1 bg-[#d5aa62]" />
@@ -428,6 +449,122 @@ export default function App() {
       </section>
     </main>
   );
+}
+
+function AdminPage() {
+  const [account, setAccount] = useState("");
+  const [password, setPassword] = useState("");
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [error, setError] = useState("");
+
+  function handleLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    // TODO: 正式上线必须改为后端鉴权，前端硬编码密码仅用于 Demo。
+    if (account === "ysh_admin" && password === "YSH@2026#Advisor!88") {
+      setLoggedIn(true);
+      setError("");
+      return;
+    }
+
+    setError("账号或密码不正确");
+  }
+
+  if (loggedIn) {
+    return (
+      <main className="min-h-screen bg-[#15100b] p-8 text-[#f4daa3]">
+        <section className="mx-auto max-w-5xl border border-[#916330] bg-[#3d2617]/95 p-6 shadow-2xl shadow-black/50">
+          <div className="border-b border-[#d8ad68]/35 pb-4">
+            <div className="text-xs tracking-[0.22em] text-[#d2a963]">忆山河</div>
+            <h1 className="mt-2 text-2xl font-semibold text-[#ffe0a3]">AI军师后台管理</h1>
+          </div>
+
+          <div className="mt-6 grid grid-cols-4 gap-4">
+            {["知识库管理", "英雄库管理", "玩家状态模拟", "问答日志"].map((item) => (
+              <div
+                className="border border-[#d2a963]/35 bg-[#21140c]/45 p-4 text-sm text-[#f4daa3]"
+                key={item}
+              >
+                <div className="text-lg font-semibold text-[#ffe0a3]">{item}</div>
+                <div className="mt-3 text-xs leading-5 text-[#d2a963]">静态占位，后续接入管理接口。</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[#15100b] p-6 text-[#f4daa3]">
+      <form
+        className="w-full max-w-sm border border-[#916330] bg-[#3d2617]/95 p-6 shadow-2xl shadow-black/50"
+        onSubmit={handleLogin}
+      >
+        <div className="mb-5 border-b border-[#d8ad68]/35 pb-4">
+          <div className="text-xs tracking-[0.22em] text-[#d2a963]">后台入口</div>
+          <h1 className="mt-2 text-xl font-semibold text-[#ffe0a3]">AI军师后台登录</h1>
+        </div>
+
+        <label className="mb-3 block text-sm text-[#d2a963]">
+          账号
+          <input
+            className="mt-1 h-10 w-full border border-[#b88649]/70 bg-[#f1d9a1] px-3 text-[#3b2415] outline-none focus:border-[#ffd184] focus:ring-2 focus:ring-[#ffd184]/30"
+            onChange={(event) => setAccount(event.target.value)}
+            value={account}
+          />
+        </label>
+
+        <label className="mb-4 block text-sm text-[#d2a963]">
+          密码
+          <input
+            className="mt-1 h-10 w-full border border-[#b88649]/70 bg-[#f1d9a1] px-3 text-[#3b2415] outline-none focus:border-[#ffd184] focus:ring-2 focus:ring-[#ffd184]/30"
+            onChange={(event) => setPassword(event.target.value)}
+            type="password"
+            value={password}
+          />
+        </label>
+
+        {error ? <div className="mb-3 text-sm text-[#ffd0b6]">{error}</div> : null}
+
+        <button
+          className="h-10 w-full border border-[#f1c879] bg-[#9d2e22] font-semibold text-[#ffe9b5] shadow transition hover:bg-[#b23b2b]"
+          type="submit"
+        >
+          登录
+        </button>
+      </form>
+    </main>
+  );
+}
+
+function HealthPage() {
+  const payload = {
+    status: "ok",
+    service: "ysh-ai-advisor",
+    time: new Date().toISOString(),
+  };
+
+  return (
+    <pre className="m-0 min-h-screen bg-white p-4 text-sm text-black">
+      {JSON.stringify(payload, null, 2)}
+    </pre>
+  );
+}
+
+export default function App() {
+  const path = window.location.pathname;
+
+  if (path === "/") {
+    window.location.replace("/advisor");
+    return null;
+  }
+
+  if (path === "/advisor") return <AdvisorPage />;
+  if (path === "/embed/advisor") return <AdvisorPage embedded />;
+  if (path === "/admin") return <AdminPage />;
+  if (path === "/api/health") return <HealthPage />;
+
+  return <AdvisorPage />;
 }
 
 function AdvisorCard({ answer }: { answer?: AdvisorAnswer }) {
