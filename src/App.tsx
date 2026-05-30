@@ -19,6 +19,19 @@ export type AdvisorCategory =
   | "天气补给"
   | "军备兵法";
 
+export type AdvisorSection =
+  | "home"
+  | "beginner"
+  | "development"
+  | "heroes"
+  | "troops"
+  | "battle"
+  | "resources"
+  | "technology"
+  | "military"
+  | "records"
+  | "settings";
+
 export type ChatMessage = ChatHistory & {
   id: number;
   answer?: AdvisorAnswer;
@@ -28,6 +41,14 @@ export type MilitaryPanel = {
   stage: string;
   targets: string[];
   risks: string[];
+};
+
+export type DailyOrder = {
+  task: string;
+  reason: string;
+  priority: "最高" | "高" | "中";
+  risk: string;
+  benefit: string;
 };
 
 export type AdvisorApi = {
@@ -47,6 +68,22 @@ const categories: AdvisorCategory[] = [
   "军备兵法",
 ];
 
+const navItems: Array<{ section: AdvisorSection; label: string; icon: string; category: AdvisorCategory }> = [
+  { section: "home", label: "军师首页", icon: "⌂", category: "新手开荒" },
+  { section: "beginner", label: "新手开荒", icon: "⚔", category: "新手开荒" },
+  { section: "development", label: "发展路线", icon: "▣", category: "建筑发展" },
+  { section: "heroes", label: "英雄配将", icon: "♞", category: "英雄配将" },
+  { section: "troops", label: "部曲培养", icon: "⚑", category: "部曲战斗" },
+  { section: "battle", label: "战斗策略", icon: "╳", category: "军备兵法" },
+  { section: "resources", label: "资源规划", icon: "◎", category: "建筑发展" },
+  { section: "technology", label: "科技研究", icon: "冊", category: "军备兵法" },
+  { section: "military", label: "军情分析", icon: "◈", category: "势力攻城" },
+  { section: "records", label: "问答记录", icon: "☷", category: "天气补给" },
+  { section: "settings", label: "军师设置", icon: "⚙", category: "军备兵法" },
+];
+
+const dailyOrderIcons = ["城", "盔", "穗", "旗", "令"];
+
 const recommendedQuestions = [
   "我现在该先升什么建筑？",
   "声望有什么用？",
@@ -55,7 +92,7 @@ const recommendedQuestions = [
   "阵型应该怎么搭配？",
 ];
 
-const quickActions = ["热门攻略", "智能配将", "攻城助手", "天气补给"];
+const topTabs = ["今日军令", "热门攻略", "智能配将", "攻城助手", "天气补给"];
 
 const militaryPanel: MilitaryPanel = {
   stage: "开荒期",
@@ -91,6 +128,81 @@ function parseOwnedHeroes(value: string) {
 function formatPlayerStateField(playerState: PlayerState, key: keyof PlayerState) {
   const value = playerState[key];
   return Array.isArray(value) ? value.join("、") : value;
+}
+
+function generateDailyOrders(playerState: PlayerState): DailyOrder[] {
+  const orders: DailyOrder[] = [];
+  const landLimit = Math.floor(playerState.prestige / 100);
+  const hasTerritoryRoom = playerState.territoryCount < landLimit;
+  const isWinter = playerState.season.includes("冬");
+  const lowestResource = [
+    { name: "木材", value: playerState.wood },
+    { name: "石料", value: playerState.stone },
+    { name: "粮草", value: playerState.food },
+    { name: "铁矿", value: playerState.iron },
+  ].sort((a, b) => a.value - b.value)[0];
+
+  if (playerState.hallLevel < 6) {
+    orders.push({
+      task: `推进议事厅至${playerState.hallLevel + 1}级`,
+      reason: "议事厅会影响坞堡、科技与领地上限，是当前发展主轴。",
+      priority: "最高",
+      risk: "资源未备齐时硬升，会拖慢征兵和主力恢复。",
+      benefit: "解锁发展上限，提升后续科技与领地节奏。",
+    });
+  }
+
+  if (playerState.mainTroopPower < 15000) {
+    orders.push({
+      task: "集中培养一队主力部曲",
+      reason: `当前主力战力${playerState.mainTroopPower.toLocaleString("zh-CN")}，仍需补英雄等级、战技和军备。`,
+      priority: "最高",
+      risk: "主力未稳就挑战高等级地，容易扩大兵损。",
+      benefit: "降低刷地兵损，提高连续作战能力。",
+    });
+  }
+
+  if (hasTerritoryRoom) {
+    orders.push({
+      task: "补占高价值资源地",
+      reason: `声望${playerState.prestige}约可支撑${landLimit}块领地，当前仅${playerState.territoryCount}块。`,
+      priority: "高",
+      risk: "远距离铺地会拉长补给线，冬季尤其容易断粮。",
+      benefit: "增加资源产出，缓解建筑升级卡点。",
+    });
+  }
+
+  if (isWinter) {
+    orders.push({
+      task: "暂停远征，改为近地整备",
+      reason: "当前为冬季，行军速度与粮草压力都会影响连续作战。",
+      priority: "高",
+      risk: "冬季强行远征会增加粮耗，并可能错过集结窗口。",
+      benefit: "保存兵力与粮草，为季节转换后的推进蓄势。",
+    });
+  }
+
+  if (lowestResource) {
+    orders.push({
+      task: `优先补足${lowestResource.name}`,
+      reason: `${lowestResource.name}当前储备最低，可能成为建筑升级或征兵卡点。`,
+      priority: orders.length < 3 ? "高" : "中",
+      risk: "资源结构失衡会导致议事厅、军营或军备升级断档。",
+      benefit: "补齐短板资源，减少发展等待时间。",
+    });
+  }
+
+  if (orders.length < 3) {
+    orders.push({
+      task: "完成今日声望与策令任务",
+      reason: "声望决定领地上限，策令可补齐当日发展短板。",
+      priority: "中",
+      risk: "声望和策令满溢会浪费每日成长窗口。",
+      benefit: "稳定获取日常成长收益。",
+    });
+  }
+
+  return orders.slice(0, 5);
 }
 
 export function loadHistory(): ChatHistory[] {
@@ -161,7 +273,9 @@ const initialHistory: ChatHistory[] = [
 ];
 
 function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
+  const [activeSection, setActiveSection] = useState<AdvisorSection>("home");
   const [activeCategory, setActiveCategory] = useState<AdvisorCategory>("新手开荒");
+  const [activeTopTab, setActiveTopTab] = useState("今日军令");
   const [input, setInput] = useState("");
   const [playerState, setPlayerState] = useState<PlayerState>(() => getPlayerState());
   const [editingPlayerState, setEditingPlayerState] = useState<PlayerState>(() => getPlayerState());
@@ -224,6 +338,10 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
     setIsEditingMilitary(false);
   }
 
+  function handleBack() {
+    // TODO: 后续由游戏接入层实现返回主界面逻辑。
+  }
+
   useEffect(() => {
     if (!embedded) return;
 
@@ -237,76 +355,130 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
 
   return (
     <main
-      className={`flex h-screen w-screen items-center justify-center overflow-hidden bg-[#15100b] text-[#34210f] ${
+      className={`flex h-screen w-screen items-center justify-center overflow-hidden bg-[#2c3e52] text-[#edf2f7] ${
         embedded ? "p-0" : "p-3"
       }`}
     >
       <section
-        className={`relative aspect-video h-full w-full overflow-hidden border border-[#916330] bg-[#d8b574] shadow-2xl shadow-black/60 ${
+        className={`relative aspect-video h-full w-full overflow-hidden border border-[#d2c08b]/32 bg-[#53687d] shadow-2xl shadow-[#172536]/42 ${
           embedded
             ? "max-h-screen max-w-[calc(100vh*16/9)]"
             : "max-h-[calc(100vh-24px)] max-w-[calc((100vh-24px)*16/9)]"
         }`}
       >
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(68,37,16,0.12)_1px,transparent_1px),linear-gradient(0deg,rgba(68,37,16,0.10)_1px,transparent_1px)] bg-[size:40px_40px]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_36%,rgba(255,238,190,0.62),rgba(196,139,66,0.22)_55%,rgba(35,21,12,0.26))]" />
-        <div className="absolute inset-x-0 top-0 h-1 bg-[#d5aa62]" />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(232,238,246,0.05)_1px,transparent_1px),linear-gradient(0deg,rgba(232,238,246,0.042)_1px,transparent_1px)] bg-[size:40px_40px]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_45%_12%,rgba(208,218,229,0.24),transparent_36%),linear-gradient(135deg,rgba(54,72,92,0.7),rgba(104,123,143,0.48)_48%,rgba(48,67,88,0.68))]" />
+        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.055),transparent_28%,rgba(255,255,255,0.035)_58%,transparent)]" />
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#d8c993]/70 to-transparent" />
 
-        <div className="relative grid h-full grid-rows-[50px_1fr]">
-          <header className="flex items-center justify-between border-b border-[#80582d]/70 bg-[#4a2b17]/92 px-5 text-[#f7e0ad]">
+        <div className="relative grid h-full grid-rows-[42px_1fr]">
+          <header className="flex items-center justify-between border-b border-[#d8c993]/24 bg-[#5f7185]/38 px-5 text-[#edf2f7] shadow-sm shadow-[#172536]/20 backdrop-blur-md">
             <div className="flex items-center gap-3">
-              <span className="grid h-8 w-8 place-items-center border border-[#dfb56f] bg-[#9d2e22] text-lg font-semibold text-[#ffe1a0] shadow-inner">
+              <span className="grid h-7 w-7 place-items-center border border-[#d8c993]/50 bg-[#4c6076]/52 text-base font-semibold text-[#ead69d] shadow-inner">
                 谋
               </span>
-              <h1 className="text-lg font-semibold tracking-[0.16em]">忆山河 · AI智能军师</h1>
+              <h1 className="text-[19px] font-semibold leading-none tracking-[0.12em] text-[#f3dfaa]">忆山河 · AI军师</h1>
             </div>
-            <div className="flex items-center gap-2 text-xs text-[#e7ca91]">
-              <span>军师府</span>
-              <span className="h-1 w-1 rounded-full bg-[#e7ca91]" />
-              <span>战局推演中</span>
+            <div className="flex items-center gap-2 text-xs text-[#c6ced8]">
+              <span className="border border-[#d8c993]/14 bg-[#2f4256]/24 px-2 py-0.5 text-[11px] leading-none text-[#d9c98d]">军师府</span>
+              <span className="border border-[#d8c993]/14 bg-[#2f4256]/24 px-2 py-0.5 text-[11px] leading-none text-[#cbd5df]">战局推演中</span>
+              <button
+                aria-label="返回游戏主界面"
+                className="group ml-10 grid h-10 w-20 place-items-center bg-transparent text-[#cdb679] drop-shadow-[0_1px_0_rgba(74,55,25,0.62)] transition hover:text-[#e2cc8b] hover:drop-shadow-[0_0_5px_rgba(216,190,118,0.28)]"
+                onClick={handleBack}
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  className="h-8 w-14 overflow-visible"
+                  fill="none"
+                  viewBox="0 0 96 54"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <defs>
+                    <linearGradient id="backArrowGold" x1="17" x2="82" y1="10" y2="41" gradientUnits="userSpaceOnUse">
+                      <stop stopColor="#E6D49C" />
+                      <stop offset="0.42" stopColor="#BFA765" />
+                      <stop offset="1" stopColor="#6E5528" />
+                    </linearGradient>
+                    <linearGradient id="backArrowEdge" x1="12" x2="80" y1="6" y2="48" gradientUnits="userSpaceOnUse">
+                      <stop stopColor="#D8C58C" />
+                      <stop offset="1" stopColor="#58411D" />
+                    </linearGradient>
+                    <filter id="backArrowGlow" colorInterpolationFilters="sRGB" filterUnits="userSpaceOnUse" x="0" y="0" width="96" height="54">
+                      <feDropShadow dx="0" dy="0" stdDeviation="1.2" floodColor="#C8AB63" floodOpacity="0.18" />
+                      <feDropShadow dx="0" dy="1.4" stdDeviation="0.35" floodColor="#4B3517" floodOpacity="0.55" />
+                    </filter>
+                  </defs>
+                  <path
+                    d="M80 11H36.5L48.8 22.6L42.5 29.1L18 26.8L41.9 7.5L48.4 14.2L39.2 19.7H80C84.8 19.7 88.5 23.4 88.5 28.1C88.5 32.8 84.8 36.5 80 36.5H43.5L50.9 43.5L44.1 49.5L21.6 31.6H80C82 31.6 83.5 30.1 83.5 28.1C83.5 26.1 82 24.6 80 24.6H25.2L18 26.8L25.2 24.6L42.4 10.7L36.5 11H80Z"
+                    fill="url(#backArrowGold)"
+                    filter="url(#backArrowGlow)"
+                    stroke="url(#backArrowEdge)"
+                    strokeLinejoin="round"
+                    strokeWidth="1.4"
+                  />
+                  <path
+                    d="M78 14.8H45.8M39.2 15.2L26.8 25.1M78 34.1H48.6M42.4 44.1L28.7 33.2"
+                    stroke="#F0DEAA"
+                    strokeLinecap="round"
+                    strokeOpacity="0.36"
+                    strokeWidth="1.5"
+                  />
+                </svg>
+              </button>
             </div>
           </header>
 
-          <div className="grid min-h-0 grid-cols-[138px_minmax(0,1fr)_260px] gap-3 p-3">
-            <aside className="flex min-h-0 flex-col border border-[#8c6131]/75 bg-[#5a351c]/88 p-2 text-[#f4daa3] shadow-lg">
-              <div className="mb-2 border-b border-[#d8ad68]/35 pb-2 text-center text-xs tracking-[0.18em] text-[#ffd998]">
-                军略
+          <div className="grid min-h-0 grid-cols-[220px_minmax(0,1fr)_260px] gap-3 p-3">
+            <aside className="ysh-panel flex min-h-0 flex-col p-2 text-[#d9e0e8]">
+              <div className="mb-2 border-b border-[#d8c993]/18 pb-2 text-center text-[11px] tracking-[0.16em] text-[#e4d29d]">
+                军师导航
               </div>
-              <nav className="min-h-0 flex-1 space-y-1.5">
-                {categories.map((category) => (
+              <nav className="scrollbar-ancient min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+                {navItems.map((item) => (
                   <button
-                    className={`h-9 w-full border px-2 text-left text-xs transition ${
-                      activeCategory === category
-                        ? "border-[#f0c270] bg-[#ad3f28] text-[#fff0c5] shadow"
-                        : "border-[#b4864a]/35 bg-[#2f1c10]/45 text-[#e8c98e] hover:border-[#e4b66f] hover:bg-[#5b3219]"
+                    className={`flex h-[60px] w-full items-center gap-3 border-l-2 border-y-0 border-r-0 px-3 text-left text-[18px] leading-none transition ${
+                      activeSection === item.section
+                        ? "border-[#d8c993] bg-gradient-to-r from-[#d7c38b]/22 via-[#8d9aaa]/14 to-transparent text-[#ead69d]"
+                        : "border-transparent bg-transparent text-[#c5ced8] hover:border-[#d8c993]/35 hover:bg-[#607589]/18 hover:text-[#ead69d]"
                     }`}
-                    key={category}
-                    onClick={() => setActiveCategory(category)}
+                    key={item.label}
+                    onClick={() => {
+                      setActiveSection(item.section);
+                      setActiveCategory(item.category);
+                    }}
                     type="button"
                   >
-                    {category}
+                    <span className="grid h-5 w-5 shrink-0 place-items-center text-sm text-[#d8c993]">
+                      {item.icon}
+                    </span>
+                    <span className="whitespace-nowrap">{item.label}</span>
                   </button>
                 ))}
               </nav>
             </aside>
 
-            <section className="grid min-h-0 grid-rows-[62px_1fr_64px] border border-[#9b6d38]/75 bg-[#edd49a]/84 shadow-lg">
-              <div className="flex items-center justify-between border-b border-[#9b6d38]/50 bg-[#c79755]/42 px-4">
-                <div className="flex items-center gap-3">
-                  <div className="grid h-11 w-11 place-items-center border border-[#8a5c2b] bg-[#4a2b17] text-xl text-[#ffe0a3] shadow-inner">
-                    师
-                  </div>
-                  <div>
-                    <div className="text-xs text-[#73451e]">当前问策 · {activeCategory}</div>
-                    <div className="text-sm font-semibold text-[#3b2415]">军师以结论 / 原因 / 操作步骤 / 风险提醒呈报</div>
+            <section className="ysh-panel grid min-h-0 grid-rows-[82px_1fr_64px]">
+              <div className="border-b border-[#d8c993]/18 bg-[#7f91a3]/18 px-4 py-2.5">
+                <div className="mb-2 text-left">
+                  <div className="whitespace-nowrap text-sm leading-none text-[#d8c993]">
+                    当前问策：<span className="font-semibold text-[#ead69d]">{activeCategory}</span>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  {quickActions.map((action) => (
+                <div className="flex h-9 items-center gap-2 overflow-hidden">
+                  {topTabs.map((action) => (
                     <button
-                      className="border border-[#8e612f]/55 bg-[#f3dca4]/68 px-2.5 py-1.5 text-xs text-[#5c3418] transition hover:bg-[#fff0bf]"
+                      className={`flex h-9 items-center whitespace-nowrap border px-3 text-[14px] leading-none transition ${
+                        activeTopTab === action
+                          ? "border-[#d8c993]/50 bg-[#d2c08b]/10 text-[#ead69d]"
+                          : "border-[#d8c993]/14 bg-[#596f84]/18 text-[#d9e0e8] hover:border-[#d8c993]/34 hover:text-[#ead69d]"
+                      }`}
                       key={action}
-                      onClick={() => void submitQuestion(action)}
+                      onClick={() => {
+                        setActiveTopTab(action);
+                        if (action !== "今日军令") void submitQuestion(action);
+                      }}
                       type="button"
                     >
                       {action}
@@ -317,10 +489,11 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
 
               <div className="scrollbar-ancient min-h-0 overflow-y-auto p-4">
                 <div className="space-y-3">
+                  <DailyOrdersCard orders={generateDailyOrders(playerState)} />
                   {messages.map((message) =>
                     message.role === "player" ? (
                       <div className="flex justify-end" key={message.id}>
-                        <div className="max-w-[70%] border border-[#9f6f35] bg-[#7c2d22] px-4 py-2.5 text-sm leading-6 text-[#ffedc4] shadow">
+                        <div className="max-w-[70%] border border-[#d8c993]/34 bg-[#d2c08b]/14 px-4 py-2.5 text-sm leading-6 text-[#f3e4b8] shadow">
                           {message.content}
                         </div>
                       </div>
@@ -332,17 +505,17 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
               </div>
 
               <form
-                className="flex items-center gap-3 border-t border-[#9b6d38]/55 bg-[#4a2c18]/92 px-4"
+                className="flex items-center gap-3 border-t border-[#d8c993]/18 bg-[#40566c]/34 px-4 backdrop-blur-md"
                 onSubmit={handleSubmit}
               >
                 <input
-                  className="h-10 flex-1 border border-[#b88649]/70 bg-[#f1d9a1] px-4 text-sm text-[#3b2415] outline-none placeholder:text-[#8a6133] focus:border-[#ffd184] focus:ring-2 focus:ring-[#ffd184]/35"
+                  className="h-10 flex-1 border border-[#d8c993]/34 bg-[#5f7185]/34 px-4 text-sm text-[#edf2f7] outline-none placeholder:text-[#c5ced8]/72 focus:border-[#d8c993]/65 focus:ring-2 focus:ring-[#d8c993]/16"
                   onChange={(event) => setInput(event.target.value)}
                   placeholder="向军师提问：例如，我现在该先升什么建筑？"
                   value={input}
                 />
                 <button
-                  className="h-10 border border-[#f1c879] bg-[#9d2e22] px-7 text-sm font-semibold text-[#ffe9b5] shadow transition hover:bg-[#b23b2b] active:translate-y-px"
+                  className="h-10 border border-[#d8c993]/46 bg-gradient-to-b from-[#9f9880] to-[#6f6d63] px-7 text-sm font-semibold text-[#f7e9bd] shadow transition hover:from-[#b4aa8b] hover:to-[#7b7666] active:translate-y-px"
                   type="submit"
                 >
                   问策
@@ -350,21 +523,24 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
               </form>
             </section>
 
-            <aside className="grid min-h-0 grid-rows-[auto_auto_1fr] border border-[#8c6131]/75 bg-[#3d2617]/90 p-3 text-[#f4daa3] shadow-lg">
-              <div className="border-b border-[#d8ad68]/35 pb-3">
+            <aside className="ysh-panel grid min-h-0 grid-rows-[auto_auto_1fr] p-3 text-[#d9e0e8]">
+              <div className="border-b border-[#d8c993]/18 pb-3">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="text-xs tracking-[0.2em] text-[#d2a963]">军情面板</div>
+                  <div className="text-xs tracking-[0.2em] text-[#ead69d]">军情概览</div>
                   <button
-                    className="border border-[#d2a963]/45 bg-[#7c4b23]/50 px-2 py-1 text-xs text-[#ffe0a3] transition hover:bg-[#9d5a2a]"
+                    className="border border-[#d8c993]/30 bg-[#596f84]/34 px-2 py-1 text-xs text-[#ead69d] transition hover:bg-[#d2c08b]/14"
                     onClick={openMilitaryEditor}
                     type="button"
                   >
                     修改军情
                   </button>
                 </div>
-                <div className="mt-2 flex items-end justify-between">
-                  <span className="text-2xl font-semibold text-[#ffe0a3]">{militaryPanel.stage}</span>
-                  <span className="border border-[#b95c42]/55 bg-[#5a221a]/55 px-2 py-1 text-xs text-[#ffd0b6]">需谨慎</span>
+                <div className="mt-3 flex items-end justify-between">
+                  <div>
+                    <div className="text-xs leading-none text-[#c5ced8]">军情阶段</div>
+                    <div className="mt-1 text-lg font-semibold leading-none text-[#ead69d]">{militaryPanel.stage}</div>
+                  </div>
+                  <span className="border border-[#d8c993]/30 bg-[#d2c08b]/12 px-2 py-1 text-xs text-[#e6d29b]">需谨慎</span>
                 </div>
               </div>
 
@@ -382,11 +558,11 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
                 <PanelGroup title="推荐目标" items={militaryPanel.targets} tone="target" />
                 <PanelGroup title="风险提醒" items={militaryPanel.risks} tone="risk" />
 
-                <div className="mt-4 border border-[#b4864a]/35 bg-[#21140c]/45 p-3 text-xs leading-5 text-[#e6c891]">
+                <div className="mt-4 border border-[#d8c993]/18 bg-[#40566c]/24 p-3 text-xs leading-5 text-[#d4dbe4]">
                   沙盘判读：先固本营，再争外势。主力未稳时，不宜多线出征。
                 </div>
 
-                <div className="mt-3 border border-[#d2a963]/35 bg-[#7c4b23]/32 p-3 text-xs leading-5 text-[#f2d79f]">
+                <div className="mt-3 border border-[#d8c993]/18 bg-[#40566c]/24 p-3 text-xs leading-5 text-[#d4dbe4]">
                   快捷问策可直接唤起对应建议，后续可与游戏内建筑、部曲、天气状态联动。
                 </div>
               </div>
@@ -395,18 +571,18 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
         </div>
 
         {isEditingMilitary ? (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#130c07]/72 px-8">
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#09111c]/72 px-8">
             <form
-              className="w-full max-w-3xl border border-[#d2a963]/70 bg-[#3d2617]/96 p-4 text-[#f4daa3] shadow-2xl shadow-black/60"
+              className="ysh-panel w-full max-w-3xl p-4 text-[#d7dee8] shadow-2xl shadow-black/60"
               onSubmit={handleMilitarySave}
             >
-              <div className="mb-4 flex items-center justify-between border-b border-[#d8ad68]/35 pb-3">
+              <div className="mb-4 flex items-center justify-between border-b border-[#c7b277]/25 pb-3">
                 <div>
-                  <div className="text-xs tracking-[0.2em] text-[#d2a963]">军情校阅</div>
-                  <div className="mt-1 text-lg font-semibold text-[#ffe0a3]">修改军情</div>
+                  <div className="text-xs tracking-[0.2em] text-[#c7b277]">军情校阅</div>
+                  <div className="mt-1 text-lg font-semibold text-[#ead69d]">修改军情</div>
                 </div>
                 <button
-                  className="border border-[#b4864a]/50 bg-[#21140c]/45 px-3 py-1.5 text-sm text-[#e6c891] transition hover:bg-[#5a351c]"
+                  className="border border-[#d8c993]/24 bg-[#40566c]/30 px-3 py-1.5 text-sm text-[#c6ced8] transition hover:bg-[#607589]/36"
                   onClick={() => setIsEditingMilitary(false)}
                   type="button"
                 >
@@ -417,12 +593,12 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
               <div className="grid grid-cols-5 gap-3">
                 {playerStateFields.map((field) => (
                   <label
-                    className={`text-xs text-[#d2a963] ${field.key === "ownedHeroes" ? "col-span-5" : ""}`}
+                    className={`text-xs text-[#c7b277] ${field.key === "ownedHeroes" ? "col-span-5" : ""}`}
                     key={field.key}
                   >
                     <span className="mb-1 block">{field.label}</span>
                     <input
-                      className="h-9 w-full border border-[#b88649]/70 bg-[#f1d9a1] px-2 text-sm text-[#3b2415] outline-none focus:border-[#ffd184] focus:ring-2 focus:ring-[#ffd184]/30"
+                      className="h-9 w-full border border-[#d8c993]/30 bg-[#5f7185]/34 px-2 text-sm text-[#edf2f7] outline-none focus:border-[#d8c993]/60 focus:ring-2 focus:ring-[#d8c993]/16"
                       min={field.type === "number" ? 0 : undefined}
                       onChange={(event) => updateEditingField(field.key, event.target.value)}
                       type={field.type}
@@ -432,12 +608,12 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
                 ))}
               </div>
 
-              <div className="mt-4 flex items-center justify-between border-t border-[#d8ad68]/25 pt-3">
-                <div className="text-xs leading-5 text-[#e6c891]">
+              <div className="mt-4 flex items-center justify-between border-t border-[#c7b277]/20 pt-3">
+                <div className="text-xs leading-5 text-[#c6ced8]">
                   保存后会立即更新军情面板，并作为下一次问策的判断依据。
                 </div>
                 <button
-                  className="border border-[#f1c879] bg-[#9d2e22] px-6 py-2 text-sm font-semibold text-[#ffe9b5] shadow transition hover:bg-[#b23b2b] active:translate-y-px"
+                  className="border border-[#d8c993]/46 bg-gradient-to-b from-[#9f9880] to-[#6f6d63] px-6 py-2 text-sm font-semibold text-[#f7e9bd] shadow transition hover:from-[#b4aa8b] hover:to-[#7b7666] active:translate-y-px"
                   type="submit"
                 >
                   保存军情
@@ -471,21 +647,21 @@ function AdminPage() {
 
   if (loggedIn) {
     return (
-      <main className="min-h-screen bg-[#15100b] p-8 text-[#f4daa3]">
-        <section className="mx-auto max-w-5xl border border-[#916330] bg-[#3d2617]/95 p-6 shadow-2xl shadow-black/50">
-          <div className="border-b border-[#d8ad68]/35 pb-4">
-            <div className="text-xs tracking-[0.22em] text-[#d2a963]">忆山河</div>
-            <h1 className="mt-2 text-2xl font-semibold text-[#ffe0a3]">AI军师后台管理</h1>
+      <main className="min-h-screen bg-[#2c3e52] p-8 text-[#d7dee8]">
+        <section className="ysh-panel mx-auto max-w-5xl p-6">
+          <div className="border-b border-[#c7b277]/25 pb-4">
+            <div className="text-xs tracking-[0.22em] text-[#c7b277]">忆山河</div>
+            <h1 className="mt-2 text-2xl font-semibold text-[#ead69d]">AI军师后台管理</h1>
           </div>
 
           <div className="mt-6 grid grid-cols-4 gap-4">
             {["知识库管理", "英雄库管理", "玩家状态模拟", "问答日志"].map((item) => (
               <div
-                className="border border-[#d2a963]/35 bg-[#21140c]/45 p-4 text-sm text-[#f4daa3]"
+                className="border border-[#d8c993]/18 bg-[#52687d]/22 p-4 text-sm text-[#d7dee8]"
                 key={item}
               >
-                <div className="text-lg font-semibold text-[#ffe0a3]">{item}</div>
-                <div className="mt-3 text-xs leading-5 text-[#d2a963]">静态占位，后续接入管理接口。</div>
+                <div className="text-lg font-semibold text-[#ead69d]">{item}</div>
+                <div className="mt-3 text-xs leading-5 text-[#c6ced8]">静态占位，后续接入管理接口。</div>
               </div>
             ))}
           </div>
@@ -495,39 +671,39 @@ function AdminPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#15100b] p-6 text-[#f4daa3]">
+    <main className="flex min-h-screen items-center justify-center bg-[#2c3e52] p-6 text-[#d7dee8]">
       <form
-        className="w-full max-w-sm border border-[#916330] bg-[#3d2617]/95 p-6 shadow-2xl shadow-black/50"
+        className="ysh-panel w-full max-w-sm p-6"
         onSubmit={handleLogin}
       >
-        <div className="mb-5 border-b border-[#d8ad68]/35 pb-4">
-          <div className="text-xs tracking-[0.22em] text-[#d2a963]">后台入口</div>
-          <h1 className="mt-2 text-xl font-semibold text-[#ffe0a3]">AI军师后台登录</h1>
+        <div className="mb-5 border-b border-[#c7b277]/25 pb-4">
+          <div className="text-xs tracking-[0.22em] text-[#c7b277]">后台入口</div>
+          <h1 className="mt-2 text-xl font-semibold text-[#ead69d]">AI军师后台登录</h1>
         </div>
 
-        <label className="mb-3 block text-sm text-[#d2a963]">
+        <label className="mb-3 block text-sm text-[#c7b277]">
           账号
           <input
-            className="mt-1 h-10 w-full border border-[#b88649]/70 bg-[#f1d9a1] px-3 text-[#3b2415] outline-none focus:border-[#ffd184] focus:ring-2 focus:ring-[#ffd184]/30"
+            className="mt-1 h-10 w-full border border-[#d8c993]/30 bg-[#5f7185]/34 px-3 text-[#edf2f7] outline-none focus:border-[#d8c993]/60 focus:ring-2 focus:ring-[#d8c993]/16"
             onChange={(event) => setAccount(event.target.value)}
             value={account}
           />
         </label>
 
-        <label className="mb-4 block text-sm text-[#d2a963]">
+        <label className="mb-4 block text-sm text-[#c7b277]">
           密码
           <input
-            className="mt-1 h-10 w-full border border-[#b88649]/70 bg-[#f1d9a1] px-3 text-[#3b2415] outline-none focus:border-[#ffd184] focus:ring-2 focus:ring-[#ffd184]/30"
+            className="mt-1 h-10 w-full border border-[#d8c993]/30 bg-[#5f7185]/34 px-3 text-[#edf2f7] outline-none focus:border-[#d8c993]/60 focus:ring-2 focus:ring-[#d8c993]/16"
             onChange={(event) => setPassword(event.target.value)}
             type="password"
             value={password}
           />
         </label>
 
-        {error ? <div className="mb-3 text-sm text-[#ffd0b6]">{error}</div> : null}
+        {error ? <div className="mb-3 text-sm text-[#e9d39a]">{error}</div> : null}
 
         <button
-          className="h-10 w-full border border-[#f1c879] bg-[#9d2e22] font-semibold text-[#ffe9b5] shadow transition hover:bg-[#b23b2b]"
+          className="h-10 w-full border border-[#d8c993]/46 bg-gradient-to-b from-[#9f9880] to-[#6f6d63] font-semibold text-[#f7e9bd] shadow transition hover:from-[#b4aa8b] hover:to-[#7b7666]"
           type="submit"
         >
           登录
@@ -571,19 +747,80 @@ function AdvisorCard({ answer }: { answer?: AdvisorAnswer }) {
   if (!answer) return null;
 
   return (
-    <div className="flex max-w-[86%] gap-3">
-      <div className="grid h-10 w-10 shrink-0 place-items-center border border-[#8a5c2b] bg-[#4a2b17] text-lg text-[#ffe0a3] shadow-inner">
-        师
-      </div>
-      <div className="border border-[#9d6f38]/70 bg-[#f7e2af]/86 p-3 text-sm shadow">
-        <div className="mb-2 flex items-center gap-2 font-semibold text-[#5a3216]">
-          <span className="border border-[#a67537] bg-[#5d3519] px-2 py-0.5 text-xs text-[#ffdda1]">军师</span>
+    <div className="max-w-[86%]">
+      <div className="ysh-panel-soft p-3 text-sm shadow">
+        <div className="mb-2 flex items-center gap-2 font-semibold text-[#ead69d]">
+          <span className="border border-[#d8c993]/34 bg-[#596f84]/42 px-2 py-0.5 text-xs text-[#ead69d]">军令分析</span>
           <span>问策回奏</span>
         </div>
         <AnswerSection title="结论" content={answer.conclusion} />
         <AnswerSection title="原因" content={answer.reason} />
         <AnswerSection title="操作步骤" items={answer.steps} />
         <AnswerSection title="风险提醒" items={answer.risks} />
+      </div>
+    </div>
+  );
+}
+
+function DailyOrdersCard({ orders }: { orders: DailyOrder[] }) {
+  return (
+    <div className="ysh-panel-soft ysh-corner p-3 text-sm text-[#d9e0e8] shadow">
+      <div className="mb-4 flex items-center justify-between border-b border-[#d8c993]/18 pb-2">
+        <div className="flex items-center gap-2">
+          <span className="border border-[#d8c993]/36 bg-[#596f84]/42 px-2 py-0.5 text-xs font-semibold text-[#ead69d]">
+            令
+          </span>
+          <span className="font-semibold text-[#ead69d]">今日军令</span>
+        </div>
+        <span className="text-xs text-[#c5ced8]">据当前军情自动生成</span>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
+        {orders.map((order, index) => (
+          <div
+            className="grid grid-cols-[72px_1fr_132px] items-center gap-5 border border-[#d8c993]/18 bg-gradient-to-r from-[#64798d]/32 to-[#425a73]/34 p-5 shadow-sm shadow-[#152536]/20"
+            key={order.task}
+          >
+            <div className="grid h-16 w-16 place-items-center border border-[#d8c993]/26 bg-[#40566c]/36 text-2xl text-[#ead69d] shadow-inner">
+              {dailyOrderIcons[index % dailyOrderIcons.length]}
+            </div>
+            <div className="min-w-0">
+              <div className="mb-3 flex items-center gap-3">
+                <div className="truncate text-[22px] font-semibold leading-none text-[#f0dca7]">{order.task}</div>
+                <div className="shrink-0 text-lg leading-none text-[#e2c983]">
+                  {"★★★★★".slice(0, order.priority === "最高" ? 5 : order.priority === "高" ? 4 : 3)}
+                  <span className="text-[#9aa8b7]">
+                    {"★★★★★".slice(order.priority === "最高" ? 5 : order.priority === "高" ? 4 : 3)}
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-1 text-[15px] leading-6">
+                <div className="truncate text-[#eef3f8]">原因：{order.reason}</div>
+                <div className="truncate text-[#e7cda0]">风险：{order.risk}</div>
+                <div className="truncate text-[#dce4ed]">收益：{order.benefit}</div>
+              </div>
+            </div>
+            <div className="flex flex-col items-end gap-4">
+              <span
+                className={`border px-3 py-1.5 text-sm ${
+                  order.priority === "最高"
+                    ? "border-[#d8c993]/46 bg-[#d2c08b]/16 text-[#ead69d]"
+                    : order.priority === "高"
+                      ? "border-[#d8c993]/30 bg-[#5f7185]/34 text-[#e6d29b]"
+                      : "border-[#cbd5df]/24 bg-[#40566c]/28 text-[#d9e0e8]"
+                }`}
+              >
+                优先级：{order.priority}
+              </span>
+              <button
+                className="h-10 w-24 border border-[#d8c993]/38 bg-gradient-to-b from-[#9b9582]/78 to-[#676b67]/78 text-lg font-semibold text-[#f7e9bd] shadow transition hover:from-[#b0a78b] hover:to-[#747366]"
+                type="button"
+              >
+                前往
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -600,10 +837,10 @@ function AnswerSection({
 }) {
   return (
     <div className="mb-2 last:mb-0">
-      <div className="mb-0.5 font-semibold text-[#8a2d1f]">{title}</div>
-      {content ? <p className="leading-6 text-[#3f2813]">{content}</p> : null}
+      <div className="mb-0.5 font-semibold text-[#ead69d]">{title}</div>
+      {content ? <p className="leading-6 text-[#edf2f7]">{content}</p> : null}
       {items ? (
-        <ol className="space-y-0.5 leading-6 text-[#3f2813]">
+        <ol className="space-y-0.5 leading-6 text-[#edf2f7]">
           {items.map((item, index) => (
             <li key={item}>
               {index + 1}. {item}
@@ -617,9 +854,9 @@ function AnswerSection({
 
 function InfoBadge({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border border-[#d2a963]/35 bg-[#21140c]/32 px-2 py-2">
-      <div className="text-[#cfa55e]">{label}</div>
-      <div className="mt-1 font-semibold text-[#ffe0a3]">{value}</div>
+    <div className="border border-[#d8c993]/16 bg-[#52687d]/22 px-2 py-2">
+      <div className="text-[#c5ced8]">{label}</div>
+      <div className="mt-1 font-semibold text-[#ead69d]">{value}</div>
     </div>
   );
 }
@@ -635,14 +872,14 @@ function PanelGroup({
 }) {
   return (
     <div className="mt-4">
-      <div className="mb-2 text-sm font-semibold text-[#ffd998]">{title}</div>
+      <div className="mb-2 text-sm font-semibold text-[#ead69d]">{title}</div>
       <div className="space-y-2">
         {items.map((item) => (
           <div
             className={`border px-3 py-2 text-sm ${
               tone === "target"
-                ? "border-[#d2a963]/45 bg-[#7c4b23]/46"
-                : "border-[#b95c42]/55 bg-[#5a221a]/50 text-[#ffd0b6]"
+                ? "border-[#d8c993]/18 bg-[#52687d]/22 text-[#edf2f7]"
+                : "border-[#d8c993]/18 bg-[#40566c]/26 text-[#e4c99b]"
             }`}
             key={item}
           >
