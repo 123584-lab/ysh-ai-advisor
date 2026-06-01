@@ -355,19 +355,19 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
 
   return (
     <main
-      className={`flex h-screen w-screen items-center justify-center overflow-hidden bg-[#2c3e52] text-[#edf2f7] ${
+      className={`flex h-screen w-screen items-center justify-center overflow-hidden bg-[#172536] text-[#edf2f7] ${
         embedded ? "p-0" : "p-3"
       }`}
     >
       <section
-        className={`relative aspect-video h-full w-full overflow-hidden border border-[#d2c08b]/32 bg-[#53687d] shadow-2xl shadow-[#172536]/42 ${
+        className={`relative aspect-video h-full w-full overflow-hidden border border-[#d2c08b]/32 bg-[#263b52] shadow-2xl shadow-[#0d1722]/55 ${
           embedded
             ? "max-h-screen max-w-[calc(100vh*16/9)]"
             : "max-h-[calc(100vh-24px)] max-w-[calc((100vh-24px)*16/9)]"
         }`}
       >
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(232,238,246,0.05)_1px,transparent_1px),linear-gradient(0deg,rgba(232,238,246,0.042)_1px,transparent_1px)] bg-[size:40px_40px]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_45%_12%,rgba(208,218,229,0.24),transparent_36%),linear-gradient(135deg,rgba(54,72,92,0.7),rgba(104,123,143,0.48)_48%,rgba(48,67,88,0.68))]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_45%_12%,rgba(150,169,190,0.18),transparent_36%),linear-gradient(135deg,rgba(27,43,62,0.82),rgba(57,79,101,0.58)_48%,rgba(22,39,58,0.78))]" />
         <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.055),transparent_28%,rgba(255,255,255,0.035)_58%,transparent)]" />
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#d8c993]/70 to-transparent" />
 
@@ -505,20 +505,21 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
               </div>
 
               <form
-                className="flex items-center gap-3 border-t border-[#d8c993]/18 bg-[#40566c]/34 px-4 backdrop-blur-md"
+                className="mx-4 mb-2 flex min-w-0 items-center gap-2.5 bg-[#334960]/52 px-3 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),inset_0_-4px_10px_rgba(10,22,34,0.22)] backdrop-blur-sm"
                 onSubmit={handleSubmit}
               >
+                <div className="w-[92px] shrink-0 text-[15px] font-semibold leading-none text-[#ead69d]">向军师问策：</div>
                 <input
-                  className="h-10 flex-1 border border-[#d8c993]/34 bg-[#5f7185]/34 px-4 text-sm text-[#edf2f7] outline-none placeholder:text-[#c5ced8]/72 focus:border-[#d8c993]/65 focus:ring-2 focus:ring-[#d8c993]/16"
+                  className="h-11 min-w-0 flex-1 border border-[#d8c993]/62 bg-[#263d55]/78 px-4 text-[15px] text-[#f2f6fb] outline-none placeholder:text-[#d9e0e8]/70 shadow-[inset_0_2px_8px_rgba(8,18,30,0.32)] focus:border-[#ead69d]/90 focus:ring-2 focus:ring-[#d8c993]/22"
                   onChange={(event) => setInput(event.target.value)}
-                  placeholder="向军师提问：例如，我现在该先升什么建筑？"
+                  placeholder="当前应该优先升级什么建筑？"
                   value={input}
                 />
                 <button
-                  className="h-10 border border-[#d8c993]/46 bg-gradient-to-b from-[#9f9880] to-[#6f6d63] px-7 text-sm font-semibold text-[#f7e9bd] shadow transition hover:from-[#b4aa8b] hover:to-[#7b7666] active:translate-y-px"
+                  className="h-11 w-[120px] shrink-0 border border-[#f0dca7]/70 bg-gradient-to-b from-[#f0dca7] via-[#bba366] to-[#71643f] text-[15px] font-semibold text-[#fff6cf] shadow-[inset_0_2px_0_rgba(255,255,255,0.34),inset_0_-6px_12px_rgba(82,62,24,0.24),0_4px_11px_rgba(0,0,0,0.3)] transition hover:from-[#fff0bf] hover:via-[#c8af6e] hover:to-[#7c6c43] active:translate-y-px"
                   type="submit"
                 >
-                  问策
+                  请教军师
                 </button>
               </form>
             </section>
@@ -749,9 +750,11 @@ function AdvisorCard({ answer }: { answer?: AdvisorAnswer }) {
   return (
     <div className="max-w-[86%]">
       <div className="ysh-panel-soft p-3 text-sm shadow">
-        <div className="mb-2 flex items-center gap-2 font-semibold text-[#ead69d]">
-          <span className="border border-[#d8c993]/34 bg-[#596f84]/42 px-2 py-0.5 text-xs text-[#ead69d]">军令分析</span>
-          <span>问策回奏</span>
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-[#ead69d]/82">
+          <span className="border border-[#d8c993]/24 bg-[#596f84]/28 px-1.5 py-0 text-[11px] text-[#ead69d]/78">
+            军令分析
+          </span>
+          <span className="text-[#d8c993]/68">问策回奏</span>
         </div>
         <AnswerSection title="结论" content={answer.conclusion} />
         <AnswerSection title="原因" content={answer.reason} />
@@ -764,7 +767,7 @@ function AdvisorCard({ answer }: { answer?: AdvisorAnswer }) {
 
 function DailyOrdersCard({ orders }: { orders: DailyOrder[] }) {
   return (
-    <div className="ysh-panel-soft ysh-corner p-3 text-sm text-[#d9e0e8] shadow">
+    <div className="ysh-panel-soft ysh-corner border-[#d8c993]/30 bg-[#1f3349]/70 p-3 text-sm text-[#d9e0e8] shadow-[0_8px_22px_rgba(6,14,24,0.24)]">
       <div className="mb-4 flex items-center justify-between border-b border-[#d8c993]/18 pb-2">
         <div className="flex items-center gap-2">
           <span className="border border-[#d8c993]/36 bg-[#596f84]/42 px-2 py-0.5 text-xs font-semibold text-[#ead69d]">
@@ -778,7 +781,7 @@ function DailyOrdersCard({ orders }: { orders: DailyOrder[] }) {
       <div className="grid grid-cols-1 gap-4">
         {orders.map((order, index) => (
           <div
-            className="grid grid-cols-[72px_1fr_132px] items-center gap-5 border border-[#d8c993]/18 bg-gradient-to-r from-[#64798d]/32 to-[#425a73]/34 p-5 shadow-sm shadow-[#152536]/20"
+            className="grid grid-cols-[72px_1fr_132px] items-center gap-5 border border-[#d8c993]/24 bg-gradient-to-r from-[#344d66]/62 to-[#20364f]/70 p-5 shadow-sm shadow-[#06101c]/28"
             key={order.task}
           >
             <div className="grid h-16 w-16 place-items-center border border-[#d8c993]/26 bg-[#40566c]/36 text-2xl text-[#ead69d] shadow-inner">
