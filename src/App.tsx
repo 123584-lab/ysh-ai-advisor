@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import {
   advisorAnswerToContent as answerToContent,
   advisorContentToAnswer as contentToAnswer,
@@ -93,6 +93,290 @@ const recommendedQuestions = [
 ];
 
 const topTabs = ["今日军令", "热门攻略", "智能配将", "攻城助手", "天气补给"];
+
+const navViewMock: Record<
+  AdvisorSection,
+  {
+    title: string;
+    placeholder: string;
+    orders?: DailyOrder[];
+  }
+> = {
+  home: {
+    title: "新手开荒",
+    placeholder: "当前应该优先升级什么建筑？",
+  },
+  beginner: {
+    title: "新手开荒",
+    placeholder: "开荒期我应该先做什么？",
+    orders: [
+      {
+        task: "优先推进议事厅等级",
+        reason: "议事厅会牵动坞堡、科技与领地上限，是开荒阶段的主线。",
+        priority: "最高",
+        risk: "资源未备齐时硬升，会拖慢征兵与主力恢复。",
+        benefit: "打开建筑与科技上限，提升后续发展速度。",
+      },
+      {
+        task: "集中培养一队主力部曲",
+        reason: "开荒期兵力分散会导致高级地推进困难，先养成一队更稳。",
+        priority: "最高",
+        risk: "多队平均培养会造成战技、兵法与装备资源不足。",
+        benefit: "降低刷地兵损，提高连续作战能力。",
+      },
+      {
+        task: "补齐基础资源地",
+        reason: "木材、石料、粮草、铁矿缺口会直接卡住建筑与征兵节奏。",
+        priority: "高",
+        risk: "只追高级地可能导致补给线过长，冬季尤其危险。",
+        benefit: "形成稳定产出，减少发展等待。",
+      },
+    ],
+  },
+  development: {
+    title: "发展路线",
+    placeholder: "我现在建筑和科技应该怎么排优先级？",
+    orders: [
+      {
+        task: "梳理建筑升级队列",
+        reason: "议事厅、军营、仓储与科技建筑决定城内发展上限。",
+        priority: "最高",
+        risk: "盲目升级边缘建筑会浪费前期紧缺资源。",
+        benefit: "减少卡建筑、卡科技、卡领地的连锁问题。",
+      },
+      {
+        task: "围绕声望扩张领地",
+        reason: "声望决定领地上限，每提升一段都应及时补占高价值资源地。",
+        priority: "高",
+        risk: "领地空位闲置会浪费每日资源产出窗口。",
+        benefit: "扩大资源盘，支撑后续建筑与军备升级。",
+      },
+      {
+        task: "确定科技主线",
+        reason: "科技路线应服务当前主力部曲与资源短板。",
+        priority: "中",
+        risk: "科技分散会导致关键加成迟迟无法成型。",
+        benefit: "提升长期战斗与内政效率。",
+      },
+    ],
+  },
+  heroes: {
+    title: "英雄配将",
+    placeholder: "我这些英雄应该怎么组队？",
+    orders: [
+      {
+        task: "确定主将与核心输出",
+        reason: "阵容先看英雄定位，再看兵种、阵型和战技联动。",
+        priority: "最高",
+        risk: "只按稀有度上阵，可能造成兵种和战技互相脱节。",
+        benefit: "更快形成一队可持续开荒或作战的主力。",
+      },
+      {
+        task: "补足前排与辅助位",
+        reason: "稳定阵容需要承伤、输出、辅助三类职责互补。",
+        priority: "高",
+        risk: "纯输出队容易在高兵损地或攻城战中崩盘。",
+        benefit: "提高容错，减少频繁回城恢复。",
+      },
+      {
+        task: "同步调整战技方向",
+        reason: "英雄定位确定后，战技应围绕控制、爆发或续航集中投入。",
+        priority: "中",
+        risk: "战技错配会浪费培养材料。",
+        benefit: "让阵容强度更早成型。",
+      },
+    ],
+  },
+  troops: {
+    title: "部曲培养",
+    placeholder: "我的主力部曲现在该怎么培养？",
+    orders: [
+      {
+        task: "优先提升主力部曲等级",
+        reason: "主力等级直接影响刷地、守城与攻城集结表现。",
+        priority: "最高",
+        risk: "副队过早分资源会拖慢主力成型。",
+        benefit: "提高战力门槛，减少兵损。",
+      },
+      {
+        task: "检查兵种与阵型匹配",
+        reason: "兵种和阵型不匹配会影响兵法触发与队伍联动。",
+        priority: "高",
+        risk: "阵型错误会让战技收益打折。",
+        benefit: "提升同等战力下的实战表现。",
+      },
+      {
+        task: "补齐征兵与粮草储备",
+        reason: "部曲连续作战依赖兵源和粮草支撑。",
+        priority: "中",
+        risk: "粮草不足会打断开荒和集结节奏。",
+        benefit: "延长连续作战时间。",
+      },
+    ],
+  },
+  battle: {
+    title: "战斗策略",
+    placeholder: "这场战斗我该用什么阵型和打法？",
+    orders: [
+      {
+        task: "先判定敌方兵种克制",
+        reason: "战斗前确认敌方主力兵种，可避免硬碰劣势阵容。",
+        priority: "最高",
+        risk: "不侦查直接进攻容易扩大兵损。",
+        benefit: "提高胜率并节省恢复时间。",
+      },
+      {
+        task: "调整阵型与兵法触发",
+        reason: "阵型需要与兵种、英雄和兵法方向匹配。",
+        priority: "高",
+        risk: "阵型联动失效会让战斗强度明显下降。",
+        benefit: "提升爆发、控制或续航能力。",
+      },
+      {
+        task: "保留一队机动预备队",
+        reason: "战斗中常有补刀、驻防和救援需求。",
+        priority: "中",
+        risk: "全军压上会缺乏应急手段。",
+        benefit: "提高战场调度弹性。",
+      },
+    ],
+  },
+  resources: {
+    title: "资源规划",
+    placeholder: "我现在缺资源，应该先补哪一种？",
+    orders: [
+      {
+        task: "盘点粮草与征兵压力",
+        reason: "粮草决定征兵和远征持续力，是战时最容易断档的资源。",
+        priority: "最高",
+        risk: "粮草不足会直接中断主力恢复。",
+        benefit: "保障开荒、攻城与防守连续性。",
+      },
+      {
+        task: "补占短板资源地",
+        reason: "资源结构失衡会让建筑和军备升级频繁卡住。",
+        priority: "高",
+        risk: "只追单项资源会造成新的短板。",
+        benefit: "让城建、科技和军备同步推进。",
+      },
+      {
+        task: "缩短补给线距离",
+        reason: "远地收益高但维护成本也高，冬季风险更明显。",
+        priority: "中",
+        risk: "补给断线会造成士气与粮耗压力。",
+        benefit: "降低远征风险，提高资源稳定度。",
+      },
+    ],
+  },
+  technology: {
+    title: "科技研究",
+    placeholder: "我当前科技应该先点哪条线？",
+    orders: [
+      {
+        task: "优先研究主力相关科技",
+        reason: "科技投入应服务当前主力兵种和战斗定位。",
+        priority: "最高",
+        risk: "多线平均研究会拖慢关键加成成型。",
+        benefit: "让主力部曲更快突破战力瓶颈。",
+      },
+      {
+        task: "补足资源与行军科技",
+        reason: "内政科技会缓解资源短板，行军科技会提升调度效率。",
+        priority: "高",
+        risk: "忽视内政会导致后续升级成本压力过大。",
+        benefit: "提升长期发展稳定性。",
+      },
+      {
+        task: "跟随议事厅等级解锁上限",
+        reason: "议事厅等级会影响科技上限，需同步推进。",
+        priority: "中",
+        risk: "科技上限被卡会浪费研究队列。",
+        benefit: "保持科技成长不断档。",
+      },
+    ],
+  },
+  military: {
+    title: "军情分析",
+    placeholder: "根据当前军情，我下一步该做什么？",
+    orders: [
+      {
+        task: "判断当前阶段风险",
+        reason: "军情分析应先看季节、主力战力、领地与声望空间。",
+        priority: "最高",
+        risk: "忽视季节和士气会让远征收益变低。",
+        benefit: "避免错误开战或错误扩张。",
+      },
+      {
+        task: "确认主力是否适合出征",
+        reason: "主力战力不足时应先培养，不宜直接挑战高风险目标。",
+        priority: "高",
+        risk: "强行出征会扩大兵损并拖慢发展。",
+        benefit: "提高作战成功率。",
+      },
+      {
+        task: "设定今日战略目标",
+        reason: "明确目标可避免资源、兵力和策令分散。",
+        priority: "中",
+        risk: "目标过多会造成执行混乱。",
+        benefit: "让每日行动更有节奏。",
+      },
+    ],
+  },
+  records: {
+    title: "问答记录",
+    placeholder: "帮我总结刚才的问策重点。",
+    orders: [
+      {
+        task: "回看近期问策结论",
+        reason: "连续对话中已有判断，可作为下一步行动依据。",
+        priority: "高",
+        risk: "重复提问会造成决策信息分散。",
+        benefit: "快速沉淀当前阶段策略。",
+      },
+      {
+        task: "确认未执行事项",
+        reason: "把未完成建议转成行动项，能提高问策收益。",
+        priority: "中",
+        risk: "只看结论不执行，发展节奏不会改善。",
+        benefit: "减少遗漏，提高执行效率。",
+      },
+      {
+        task: "基于新军情再次提问",
+        reason: "军情变化后，建议也应随之更新。",
+        priority: "中",
+        risk: "沿用旧建议可能不适合当前状态。",
+        benefit: "保持策略与实时状态一致。",
+      },
+    ],
+  },
+  settings: {
+    title: "军师设置",
+    placeholder: "我应该怎样设置当前军情数据？",
+    orders: [
+      {
+        task: "更新右侧军情数据",
+        reason: "议事厅、声望、领地和主力战力会影响军师判断。",
+        priority: "最高",
+        risk: "数据过旧会导致建议偏离真实局势。",
+        benefit: "让问策结果更贴近当前账号状态。",
+      },
+      {
+        task: "录入已有英雄",
+        reason: "配将问题可直接读取已有英雄生成阵容建议。",
+        priority: "高",
+        risk: "未录入英雄时，配将只能按通用规则判断。",
+        benefit: "提高智能配将的可用性。",
+      },
+      {
+        task: "检查季节与资源储备",
+        reason: "季节和资源会影响远征、补给与建筑升级节奏。",
+        priority: "中",
+        risk: "冬季远征和资源短缺都可能放大发展风险。",
+        benefit: "让发展建议更稳。",
+      },
+    ],
+  },
+};
 
 const militaryPanel: MilitaryPanel = {
   stage: "开荒期",
@@ -277,6 +561,7 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
   const [activeCategory, setActiveCategory] = useState<AdvisorCategory>("新手开荒");
   const [activeTopTab, setActiveTopTab] = useState("今日军令");
   const [input, setInput] = useState("");
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [playerState, setPlayerState] = useState<PlayerState>(() => getPlayerState());
   const [editingPlayerState, setEditingPlayerState] = useState<PlayerState>(() => getPlayerState());
   const [isEditingMilitary, setIsEditingMilitary] = useState(false);
@@ -286,6 +571,16 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
     if (restoredHistory.length === 0) saveHistory(usableHistory);
     return usableHistory.map(createMessage);
   });
+  const activeNavView = navViewMock[activeSection];
+  const displayedDailyOrders = activeNavView.orders ?? generateDailyOrders(playerState);
+
+  function scrollMainContentToBottom(behavior: ScrollBehavior = "smooth") {
+    requestAnimationFrame(() => {
+      const scrollContainer = scrollContainerRef.current;
+      if (!scrollContainer) return;
+      scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior });
+    });
+  }
 
   async function submitQuestion(question: string) {
     const trimmed = question.trim();
@@ -303,6 +598,7 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
 
     setInput("");
     setMessages(historyBeforeAnswer.map(createMessage));
+    scrollMainContentToBottom();
 
     const answerContent = await mockAdvisorApi.ask(trimmed, historyBeforeAnswer, playerState);
     const advisorMessage: ChatHistory = {
@@ -312,11 +608,12 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
     };
     const historyAfterAnswer = appendMessage(historyBeforeAnswer, advisorMessage);
     setMessages(historyAfterAnswer.map(createMessage));
+    scrollMainContentToBottom();
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void submitQuestion(input);
+    void submitQuestion(input.trim() || activeNavView.placeholder);
   }
 
   function openMilitaryEditor() {
@@ -353,6 +650,10 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
     });
   }, [embedded]);
 
+  useEffect(() => {
+    scrollMainContentToBottom();
+  }, [messages.length]);
+
   return (
     <main
       className={`flex h-screen w-screen items-center justify-center overflow-hidden bg-[#172536] text-[#edf2f7] ${
@@ -373,15 +674,16 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
 
         <div className="relative grid h-full grid-rows-[42px_1fr]">
           <header className="flex items-center justify-between border-b border-[#d8c993]/24 bg-[#5f7185]/38 px-5 text-[#edf2f7] shadow-sm shadow-[#172536]/20 backdrop-blur-md">
-            <div className="flex items-center gap-3">
-              <span className="grid h-7 w-7 place-items-center border border-[#d8c993]/50 bg-[#4c6076]/52 text-base font-semibold text-[#ead69d] shadow-inner">
-                谋
-              </span>
-              <h1 className="text-[19px] font-semibold leading-none tracking-[0.12em] text-[#f3dfaa]">忆山河 · AI军师</h1>
+            <div className="ml-7 flex items-center">
+              <h1
+                className="text-[28px] font-bold leading-none tracking-[1px] text-[#f0dfaa]"
+                style={{ textShadow: "0 1px 0 rgba(255,255,255,0.25), 0 2px 6px rgba(0,0,0,0.45)" }}
+              >
+                军师府
+              </h1>
             </div>
             <div className="flex items-center gap-2 text-xs text-[#c6ced8]">
-              <span className="border border-[#d8c993]/14 bg-[#2f4256]/24 px-2 py-0.5 text-[11px] leading-none text-[#d9c98d]">军师府</span>
-              <span className="border border-[#d8c993]/14 bg-[#2f4256]/24 px-2 py-0.5 text-[11px] leading-none text-[#cbd5df]">战局推演中</span>
+              <span className="border border-[#d8c993]/14 bg-[#2f4256]/24 px-2 py-0.5 text-[11px] leading-none text-[#cbd5df]">策略推演中</span>
               <button
                 aria-label="返回游戏主界面"
                 className="group ml-10 grid h-10 w-20 place-items-center bg-transparent text-[#cdb679] drop-shadow-[0_1px_0_rgba(74,55,25,0.62)] transition hover:text-[#e2cc8b] hover:drop-shadow-[0_0_5px_rgba(216,190,118,0.28)]"
@@ -440,8 +742,8 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
                   <button
                     className={`flex h-[60px] w-full items-center gap-3 border-l-2 border-y-0 border-r-0 px-3 text-left text-[18px] leading-none transition ${
                       activeSection === item.section
-                        ? "border-[#d8c993] bg-gradient-to-r from-[#d7c38b]/22 via-[#8d9aaa]/14 to-transparent text-[#ead69d]"
-                        : "border-transparent bg-transparent text-[#c5ced8] hover:border-[#d8c993]/35 hover:bg-[#607589]/18 hover:text-[#ead69d]"
+                        ? "border-[#d8c993] bg-gradient-to-r from-[#d7c38b]/22 via-[#8d9aaa]/14 to-transparent text-white"
+                        : "border-transparent bg-transparent text-[#c5ced8] hover:border-[#d8c993]/35 hover:bg-[#607589]/18 hover:text-white"
                     }`}
                     key={item.label}
                     onClick={() => {
@@ -463,7 +765,7 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
               <div className="border-b border-[#d8c993]/18 bg-[#7f91a3]/18 px-4 py-2.5">
                 <div className="mb-2 text-left">
                   <div className="whitespace-nowrap text-sm leading-none text-[#d8c993]">
-                    当前问策：<span className="font-semibold text-[#ead69d]">{activeCategory}</span>
+                    当前问策：<span className="font-semibold text-[#ead69d]">{activeNavView.title}</span>
                   </div>
                 </div>
                 <div className="flex h-9 items-center gap-2 overflow-hidden">
@@ -471,8 +773,8 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
                     <button
                       className={`flex h-9 items-center whitespace-nowrap border px-3 text-[14px] leading-none transition ${
                         activeTopTab === action
-                          ? "border-[#d8c993]/50 bg-[#d2c08b]/10 text-[#ead69d]"
-                          : "border-[#d8c993]/14 bg-[#596f84]/18 text-[#d9e0e8] hover:border-[#d8c993]/34 hover:text-[#ead69d]"
+                          ? "border-[#d8c993]/50 bg-[#d2c08b]/10 font-semibold text-white"
+                          : "border-[#d8c993]/14 bg-[#596f84]/18 text-[#d9e0e8] hover:border-[#d8c993]/34 hover:text-white"
                       }`}
                       key={action}
                       onClick={() => {
@@ -487,9 +789,9 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
                 </div>
               </div>
 
-              <div className="scrollbar-ancient min-h-0 overflow-y-auto p-4">
+              <div className="scrollbar-ancient min-h-0 overflow-y-auto p-4" ref={scrollContainerRef}>
                 <div className="space-y-3">
-                  <DailyOrdersCard orders={generateDailyOrders(playerState)} />
+                  <DailyOrdersCard orders={displayedDailyOrders} />
                   {messages.map((message) =>
                     message.role === "player" ? (
                       <div className="flex justify-end" key={message.id}>
@@ -512,7 +814,7 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
                 <input
                   className="h-11 min-w-0 flex-1 border border-[#d8c993]/62 bg-[#263d55]/78 px-4 text-[15px] text-[#f2f6fb] outline-none placeholder:text-[#d9e0e8]/70 shadow-[inset_0_2px_8px_rgba(8,18,30,0.32)] focus:border-[#ead69d]/90 focus:ring-2 focus:ring-[#d8c993]/22"
                   onChange={(event) => setInput(event.target.value)}
-                  placeholder="当前应该优先升级什么建筑？"
+                  placeholder={activeNavView.placeholder}
                   value={input}
                 />
                 <button
