@@ -562,6 +562,7 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
   const [activeTopTab, setActiveTopTab] = useState("今日军令");
   const [input, setInput] = useState("");
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const hasUserAskedRef = useRef(false);
   const [playerState, setPlayerState] = useState<PlayerState>(() => getPlayerState());
   const [editingPlayerState, setEditingPlayerState] = useState<PlayerState>(() => getPlayerState());
   const [isEditingMilitary, setIsEditingMilitary] = useState(false);
@@ -575,6 +576,8 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
   const displayedDailyOrders = activeNavView.orders ?? generateDailyOrders(playerState);
 
   function scrollMainContentToBottom(behavior: ScrollBehavior = "smooth") {
+    if (!hasUserAskedRef.current) return;
+
     requestAnimationFrame(() => {
       const scrollContainer = scrollContainerRef.current;
       if (!scrollContainer) return;
@@ -582,9 +585,11 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
     });
   }
 
-  async function submitQuestion(question: string) {
+  async function submitQuestion(question: string, shouldAutoScroll = false) {
     const trimmed = question.trim();
     if (!trimmed) return;
+
+    if (shouldAutoScroll) hasUserAskedRef.current = true;
 
     const playerMessage: ChatHistory = {
       role: "player",
@@ -609,11 +614,16 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
     const historyAfterAnswer = appendMessage(historyBeforeAnswer, advisorMessage);
     setMessages(historyAfterAnswer.map(createMessage));
     scrollMainContentToBottom();
+    if (shouldAutoScroll) {
+      requestAnimationFrame(() => {
+        hasUserAskedRef.current = false;
+      });
+    }
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void submitQuestion(input.trim() || activeNavView.placeholder);
+    void submitQuestion(input.trim() || activeNavView.placeholder, true);
   }
 
   function openMilitaryEditor() {
@@ -651,6 +661,7 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
   }, [embedded]);
 
   useEffect(() => {
+    if (!hasUserAskedRef.current) return;
     scrollMainContentToBottom();
   }, [messages.length]);
 
