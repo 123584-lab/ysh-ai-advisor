@@ -8,13 +8,20 @@ import {
 } from "./services/advisorService";
 import { advisorProvider } from "./services/advisorProvider";
 import { getHeroes } from "./services/heroService";
+import {
+  getKnowledgeGroups,
+  type StoredKnowledgeGroup,
+  type StoredKnowledgeItem,
+} from "./services/knowledgeStore";
 import { getPlayerState, updatePlayerState, type PlayerState } from "./services/playerStateService";
-import buildingKnowledge from "./knowledge/building.json";
-import combatKnowledge from "./knowledge/combat.json";
-import heroKnowledge from "./knowledge/hero.json";
-import resourceKnowledge from "./knowledge/resource.json";
-import troopKnowledge from "./knowledge/troop.json";
-import unlockKnowledge from "./knowledge/unlock.json";
+import {
+  createSupabaseKnowledgeItem,
+  deleteSupabaseKnowledgeItem,
+  fetchSupabaseKnowledgeGroups,
+  getSupabaseKnowledgeConfigStatus,
+  importLocalKnowledgeToSupabase,
+  updateSupabaseKnowledgeItem,
+} from "./services/supabaseKnowledgeService";
 
 export type AdvisorCategory =
   | "新手开荒"
@@ -947,44 +954,47 @@ function AdvisorPage({ embedded = false }: { embedded?: boolean }) {
   );
 }
 
-type AdminKnowledgeItem = {
-  id: string;
-  title: string;
-  category: string;
-  keywords?: string[];
-  content?: string;
-  summary?: string;
-  conclusion?: string;
-  reason?: string;
-  steps?: string[];
-  risk?: string[];
-};
-
-type AdminKnowledgeGroup = {
-  id: string;
-  label: string;
-  items: AdminKnowledgeItem[];
-};
-
-const adminKnowledgeGroups: AdminKnowledgeGroup[] = [
-  { id: "hero", label: "Hero", items: heroKnowledge as AdminKnowledgeItem[] },
-  { id: "troop", label: "Troop", items: troopKnowledge as AdminKnowledgeItem[] },
-  { id: "building", label: "Building", items: buildingKnowledge as AdminKnowledgeItem[] },
-  { id: "combat", label: "Combat", items: combatKnowledge as AdminKnowledgeItem[] },
-  { id: "resource", label: "Resource", items: resourceKnowledge as AdminKnowledgeItem[] },
-  { id: "unlock", label: "Unlock", items: unlockKnowledge as AdminKnowledgeItem[] },
-];
-
-const adminKnowledgeCount = adminKnowledgeGroups.reduce((total, group) => total + group.items.length, 0);
+type AdminKnowledgeItem = StoredKnowledgeItem;
+type AdminKnowledgeGroup = StoredKnowledgeGroup;
 
 function AdminKnowledgeManager({ onBack }: { onBack: () => void }) {
-  const [groups, setGroups] = useState<AdminKnowledgeGroup[]>(() =>
-    adminKnowledgeGroups.map((group) => ({ ...group, items: group.items.map((item) => ({ ...item })) })),
-  );
-  const [activeGroupId, setActiveGroupId] = useState(adminKnowledgeGroups[0]?.id ?? "");
-  const [selectedItemId, setSelectedItemId] = useState(adminKnowledgeGroups[0]?.items[0]?.id ?? "");
+  const [groups, setGroups] = useState<AdminKnowledgeGroup[]>(getKnowledgeGroups);
+  const [activeGroupId, setActiveGroupId] = useState(() => getKnowledgeGroups()[0]?.id ?? "");
+  const [selectedItemId, setSelectedItemId] = useState(() => getKnowledgeGroups()[0]?.items[0]?.id ?? "");
   const [searchText, setSearchText] = useState("");
   const [editingItem, setEditingItem] = useState<AdminKnowledgeItem | null>(null);
+  const [knowledgeStatus, setKnowledgeStatus] = useState("正在读取 Supabase 知识库...");
+  const [isImporting, setIsImporting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchSupabaseKnowledgeGroups()
+      .then((loadedGroups) => {
+        if (cancelled) return;
+        setGroups(loadedGroups);
+        setActiveGroupId(loadedGroups[0]?.id ?? "");
+        setSelectedItemId(loadedGroups[0]?.items[0]?.id ?? "");
+        setKnowledgeStatus("已读取 Supabase 知识库。");
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.warn("后台 Supabase 知识库读取失败，已展示本地 JSON 回退数据。", error);
+        const fallbackGroups = getKnowledgeGroups();
+        setGroups(fallbackGroups);
+        setActiveGroupId(fallbackGroups[0]?.id ?? "");
+        setSelectedItemId(fallbackGroups[0]?.items[0]?.id ?? "");
+        setKnowledgeStatus(
+          getSupabaseKnowledgeConfigStatus() === "configured"
+            ? "Supabase 读取失败，当前展示本地 JSON 回退数据。"
+            : "Supabase 未配置，当前展示本地 JSON 回退数据。",
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const activeGroup = groups.find((group) => group.id === activeGroupId) ?? groups[0];
   const totalCount = groups.reduce((total, group) => total + group.items.length, 0);
@@ -1023,38 +1033,77 @@ function AdminKnowledgeManager({ onBack }: { onBack: () => void }) {
     if (selectedItem) setEditingItem({ ...selectedItem });
   }
 
-  function saveItem(event: FormEvent<HTMLFormElement>) {
+  async function saveItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editingItem || !editingItem.title.trim()) return;
 
     const savedItem = { ...editingItem, title: editingItem.title.trim() };
-    setGroups((currentGroups) =>
-      currentGroups.map((group) =>
+    const itemExists = activeGroup.items.some((item) => item.id === savedItem.id);
+    setKnowledgeStatus(itemExists ? "正在保存修改..." : "正在新增条目...");
+
+    try {
+      const persistedItem = itemExists
+        ? await updateSupabaseKnowledgeItem(activeGroup.id, savedItem)
+        : await createSupabaseKnowledgeItem(activeGroup.id, savedItem);
+      const nextGroups = groups.map((group) =>
         group.id === activeGroup.id
           ? {
               ...group,
-              items: group.items.some((item) => item.id === savedItem.id)
-                ? group.items.map((item) => (item.id === savedItem.id ? savedItem : item))
-                : [savedItem, ...group.items],
+              items: itemExists
+                ? group.items.map((item) => (item.id === persistedItem.id ? persistedItem : item))
+                : [persistedItem, ...group.items],
             }
           : group,
-      ),
-    );
-    setSelectedItemId(savedItem.id);
-    setEditingItem(null);
+      );
+      setGroups(nextGroups);
+      setSelectedItemId(persistedItem.id);
+      setEditingItem(null);
+      setKnowledgeStatus("知识条目已保存到 Supabase。");
+    } catch (error) {
+      console.error("Supabase 知识条目保存失败", error);
+      setKnowledgeStatus("保存失败，请检查 Supabase 配置、表结构与权限策略。");
+    }
   }
 
-  function deleteItem() {
-    if (!selectedItem || !window.confirm(`确认删除知识条目“${selectedItem.title}”吗？此操作仅影响当前浏览器会话。`)) {
+  async function deleteItem() {
+    if (!selectedItem || !window.confirm(`确认删除知识条目“${selectedItem.title}”吗？`)) {
       return;
     }
 
-    const remainingItems = activeGroup.items.filter((item) => item.id !== selectedItem.id);
-    setGroups((currentGroups) =>
-      currentGroups.map((group) => (group.id === activeGroup.id ? { ...group, items: remainingItems } : group)),
-    );
-    setSelectedItemId(remainingItems[0]?.id ?? "");
-    setEditingItem(null);
+    setKnowledgeStatus("正在删除条目...");
+    try {
+      await deleteSupabaseKnowledgeItem(selectedItem.id);
+      const remainingItems = activeGroup.items.filter((item) => item.id !== selectedItem.id);
+      const nextGroups = groups.map((group) => (group.id === activeGroup.id ? { ...group, items: remainingItems } : group));
+      setGroups(nextGroups);
+      setSelectedItemId(remainingItems[0]?.id ?? "");
+      setEditingItem(null);
+      setKnowledgeStatus("知识条目已从 Supabase 删除。");
+    } catch (error) {
+      console.error("Supabase 知识条目删除失败", error);
+      setKnowledgeStatus("删除失败，请检查 Supabase 配置、表结构与权限策略。");
+    }
+  }
+
+  async function importLocalKnowledge() {
+    setIsImporting(true);
+    setKnowledgeStatus("正在将本地 JSON 知识库导入 Supabase...");
+
+    try {
+      const importedCount = await importLocalKnowledgeToSupabase();
+      const loadedGroups = await fetchSupabaseKnowledgeGroups();
+      const nextActiveGroup = loadedGroups.find((group) => group.id === activeGroupId) ?? loadedGroups[0];
+      setGroups(loadedGroups);
+      setActiveGroupId(nextActiveGroup?.id ?? "");
+      setSelectedItemId(nextActiveGroup?.items[0]?.id ?? "");
+      setEditingItem(null);
+      setKnowledgeStatus(`已将 ${importedCount} 条本地知识 upsert 到 Supabase。`);
+    } catch (error) {
+      console.error("本地知识库导入 Supabase 失败", error);
+      setKnowledgeStatus("导入失败，请检查 Supabase 配置、表结构与权限策略。");
+    } finally {
+      setIsImporting(false);
+    }
   }
 
   function updateEditingField(field: keyof AdminKnowledgeItem, value: string) {
@@ -1076,7 +1125,7 @@ function AdminKnowledgeManager({ onBack }: { onBack: () => void }) {
         <div>
           <div className="text-xs tracking-[0.2em] text-[#c7b277]">知识库管理</div>
           <h2 className="mt-1 text-xl font-semibold text-[#ead69d]">规则情报管理</h2>
-          <p className="mt-1 text-xs text-[#c6ced8]">新增、编辑和删除仅保存在当前浏览器会话，不会写回知识库文件。</p>
+          <p className="mt-1 text-xs text-[#c6ced8]">{knowledgeStatus}</p>
         </div>
         <button
           className="h-9 border border-[#d8c993]/28 bg-[#52687d]/22 px-4 text-sm text-[#d7dee8] transition hover:border-[#d8c993]/48 hover:text-white"
@@ -1097,6 +1146,14 @@ function AdminKnowledgeManager({ onBack }: { onBack: () => void }) {
         <div className="flex h-10 items-center border border-[#d8c993]/20 bg-[#263b50]/58 px-4 text-sm text-[#c6ced8]">
           总记录数：<span className="ml-2 font-semibold text-[#ead69d]">{totalCount}</span>
         </div>
+        <button
+          className="h-10 border border-[#d8c993]/28 bg-[#52687d]/22 px-5 text-sm text-[#d7dee8] transition hover:border-[#d8c993]/48 hover:text-white disabled:cursor-wait disabled:opacity-60"
+          disabled={isImporting}
+          onClick={importLocalKnowledge}
+          type="button"
+        >
+          {isImporting ? "正在导入..." : "导入本地知识库"}
+        </button>
         <button
           className="h-10 border border-[#d8c993]/46 bg-gradient-to-b from-[#9f9880] to-[#6f6d63] px-5 text-sm font-semibold text-[#f7e9bd] transition hover:from-[#b4aa8b] hover:to-[#7b7666]"
           onClick={startCreate}
@@ -1262,7 +1319,7 @@ function AdminPage() {
               {[
                 {
                   title: "知识库管理",
-                  text: `已接入 ${adminKnowledgeCount} 条知识，支持只读检索。`,
+                  text: "使用 Supabase 进行多人持久化管理，支持检索与分类统计。",
                   action: () => setAdminView("knowledge"),
                 },
                 { title: "英雄库管理", text: "静态占位，后续接入管理接口。" },

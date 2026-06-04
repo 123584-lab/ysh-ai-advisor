@@ -5,6 +5,7 @@ import {
 } from "./advisorService";
 import { getHeroes } from "./heroService";
 import type { PlayerState } from "./playerStateService";
+import { fetchKnowledgeItemsWithFallback } from "./supabaseKnowledgeService";
 
 export interface AdvisorProvider {
   answer(question: string, history: ChatHistory[], playerState: PlayerState): Promise<string>;
@@ -12,7 +13,8 @@ export interface AdvisorProvider {
 
 export class LocalAdvisorProvider implements AdvisorProvider {
   async answer(question: string, history: ChatHistory[], playerState: PlayerState): Promise<string> {
-    const advisorAnswer = generateAdvisorAnswer(question, playerState, getHeroes(), history);
+    const knowledgeItems = await fetchKnowledgeItemsWithFallback();
+    const advisorAnswer = generateAdvisorAnswer(question, playerState, getHeroes(), history, knowledgeItems);
     return advisorAnswerToContent(advisorAnswer);
   }
 }

@@ -1,5 +1,6 @@
 import { findKnowledgeByQuestion, type KnowledgeItem } from "./knowledgeService";
 import type { Hero } from "./heroService";
+import type { StoredKnowledgeItem } from "./knowledgeStore";
 import type { PlayerState } from "./playerStateService";
 
 export type AdvisorAnswer = {
@@ -395,9 +396,10 @@ export function generateAdvisorAnswer(
   playerState: PlayerState,
   _heroes: Hero[],
   history: ChatHistory[],
+  knowledgeItems?: StoredKnowledgeItem[],
 ): AdvisorAnswer {
   const text = question.trim();
-  const matchedKnowledge = findKnowledgeByQuestion(text);
+  const matchedKnowledge = findKnowledgeByQuestion(text, knowledgeItems);
   if (matchedKnowledge) return createKnowledgeAnswer(matchedKnowledge);
 
   const intent = detectQuestionIntent(text);
