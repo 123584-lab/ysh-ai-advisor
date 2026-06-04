@@ -978,31 +978,24 @@ const adminKnowledgeGroups: AdminKnowledgeGroup[] = [
 const adminKnowledgeCount = adminKnowledgeGroups.reduce((total, group) => total + group.items.length, 0);
 
 function AdminKnowledgeManager({ onBack }: { onBack: () => void }) {
+  const [groups, setGroups] = useState<AdminKnowledgeGroup[]>(() =>
+    adminKnowledgeGroups.map((group) => ({ ...group, items: group.items.map((item) => ({ ...item })) })),
+  );
   const [activeGroupId, setActiveGroupId] = useState(adminKnowledgeGroups[0]?.id ?? "");
   const [selectedItemId, setSelectedItemId] = useState(adminKnowledgeGroups[0]?.items[0]?.id ?? "");
   const [searchText, setSearchText] = useState("");
+  const [editingItem, setEditingItem] = useState<AdminKnowledgeItem | null>(null);
 
-  const activeGroup = adminKnowledgeGroups.find((group) => group.id === activeGroupId) ?? adminKnowledgeGroups[0];
+  const activeGroup = groups.find((group) => group.id === activeGroupId) ?? groups[0];
+  const totalCount = groups.reduce((total, group) => total + group.items.length, 0);
   const normalizedSearch = searchText.trim().toLowerCase();
   const filteredItems = activeGroup.items.filter((item) => {
     if (!normalizedSearch) return true;
-
-    const searchableText = [
-      item.title,
-      item.category,
-      item.summary,
-      item.content,
-      item.conclusion,
-      item.reason,
-      ...(item.keywords ?? []),
-      ...(item.steps ?? []),
-      ...(item.risk ?? []),
-    ]
+    return [item.title, item.category, item.summary, item.content, ...(item.keywords ?? [])]
       .filter(Boolean)
       .join(" ")
-      .toLowerCase();
-
-    return searchableText.includes(normalizedSearch);
+      .toLowerCase()
+      .includes(normalizedSearch);
   });
   const selectedItem =
     filteredItems.find((item) => item.id === selectedItemId) ?? filteredItems[0] ?? activeGroup.items[0];
@@ -1010,15 +1003,80 @@ function AdminKnowledgeManager({ onBack }: { onBack: () => void }) {
   function handleGroupChange(group: AdminKnowledgeGroup) {
     setActiveGroupId(group.id);
     setSelectedItemId(group.items[0]?.id ?? "");
+    setEditingItem(null);
   }
+
+  function startCreate() {
+    setEditingItem({
+      id: `local-${Date.now()}`,
+      title: "",
+      category: activeGroup.label,
+      keywords: [],
+      content: "",
+      summary: "",
+      steps: [],
+      risk: [],
+    });
+  }
+
+  function startEdit() {
+    if (selectedItem) setEditingItem({ ...selectedItem });
+  }
+
+  function saveItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingItem || !editingItem.title.trim()) return;
+
+    const savedItem = { ...editingItem, title: editingItem.title.trim() };
+    setGroups((currentGroups) =>
+      currentGroups.map((group) =>
+        group.id === activeGroup.id
+          ? {
+              ...group,
+              items: group.items.some((item) => item.id === savedItem.id)
+                ? group.items.map((item) => (item.id === savedItem.id ? savedItem : item))
+                : [savedItem, ...group.items],
+            }
+          : group,
+      ),
+    );
+    setSelectedItemId(savedItem.id);
+    setEditingItem(null);
+  }
+
+  function deleteItem() {
+    if (!selectedItem || !window.confirm(`确认删除知识条目“${selectedItem.title}”吗？此操作仅影响当前浏览器会话。`)) {
+      return;
+    }
+
+    const remainingItems = activeGroup.items.filter((item) => item.id !== selectedItem.id);
+    setGroups((currentGroups) =>
+      currentGroups.map((group) => (group.id === activeGroup.id ? { ...group, items: remainingItems } : group)),
+    );
+    setSelectedItemId(remainingItems[0]?.id ?? "");
+    setEditingItem(null);
+  }
+
+  function updateEditingField(field: keyof AdminKnowledgeItem, value: string) {
+    setEditingItem((current) => (current ? { ...current, [field]: value } : current));
+  }
+
+  function updateEditingList(field: "keywords" | "steps" | "risk", value: string) {
+    const separator = field === "keywords" ? /[，,、\n]+/ : /\n+/;
+    const items = value.split(separator).map((item) => item.trim()).filter(Boolean);
+    setEditingItem((current) => (current ? { ...current, [field]: items } : current));
+  }
+
+  const fieldClass =
+    "mt-1 w-full border border-[#d8c993]/25 bg-[#1f3246]/56 px-3 py-2 text-sm text-[#edf2f7] outline-none focus:border-[#d8c993]/60 focus:ring-2 focus:ring-[#d8c993]/12";
 
   return (
     <section className="mt-6 border border-[#d8c993]/20 bg-[#31465b]/72 p-4 shadow-lg shadow-black/20">
       <div className="mb-4 flex items-center justify-between gap-4 border-b border-[#c7b277]/20 pb-4">
         <div>
           <div className="text-xs tracking-[0.2em] text-[#c7b277]">知识库管理</div>
-          <h2 className="mt-1 text-xl font-semibold text-[#ead69d]">规则情报只读总览</h2>
-          <p className="mt-1 text-xs text-[#c6ced8]">当前仅支持查看与检索，不提供新增、编辑、删除。</p>
+          <h2 className="mt-1 text-xl font-semibold text-[#ead69d]">规则情报管理</h2>
+          <p className="mt-1 text-xs text-[#c6ced8]">新增、编辑和删除仅保存在当前浏览器会话，不会写回知识库文件。</p>
         </div>
         <button
           className="h-9 border border-[#d8c993]/28 bg-[#52687d]/22 px-4 text-sm text-[#d7dee8] transition hover:border-[#d8c993]/48 hover:text-white"
@@ -1037,151 +1095,114 @@ function AdminKnowledgeManager({ onBack }: { onBack: () => void }) {
           value={searchText}
         />
         <div className="flex h-10 items-center border border-[#d8c993]/20 bg-[#263b50]/58 px-4 text-sm text-[#c6ced8]">
-          总记录数：<span className="ml-2 font-semibold text-[#ead69d]">{adminKnowledgeCount}</span>
+          总记录数：<span className="ml-2 font-semibold text-[#ead69d]">{totalCount}</span>
         </div>
+        <button
+          className="h-10 border border-[#d8c993]/46 bg-gradient-to-b from-[#9f9880] to-[#6f6d63] px-5 text-sm font-semibold text-[#f7e9bd] transition hover:from-[#b4aa8b] hover:to-[#7b7666]"
+          onClick={startCreate}
+          type="button"
+        >
+          新增条目
+        </button>
       </div>
 
-      <div className="grid min-h-[520px] grid-cols-[190px_320px_minmax(0,1fr)] gap-4">
+      <div className="grid min-h-[560px] grid-cols-[190px_320px_minmax(0,1fr)] gap-4">
         <aside className="border border-[#d8c993]/16 bg-[#263b50]/62 p-2">
           <div className="mb-2 px-2 text-xs tracking-[0.16em] text-[#c7b277]">分类导航</div>
           <div className="space-y-2">
-            {adminKnowledgeGroups.map((group) => {
-              const isActive = group.id === activeGroup.id;
-
-              return (
-                <button
-                  className={`flex h-12 w-full items-center justify-between border px-3 text-left text-sm transition ${
-                    isActive
-                      ? "border-[#d8c993]/50 bg-[#6e6545]/34 text-white"
-                      : "border-[#d8c993]/12 bg-[#4d6378]/18 text-[#c6ced8] hover:border-[#d8c993]/32 hover:text-white"
-                  }`}
-                  key={group.id}
-                  onClick={() => handleGroupChange(group)}
-                  type="button"
-                >
-                  <span className="font-semibold">{group.label}</span>
-                  <span className="text-xs text-[#ead69d]">{group.items.length}</span>
-                </button>
-              );
-            })}
+            {groups.map((group) => (
+              <button
+                className={`flex h-12 w-full items-center justify-between border px-3 text-left text-sm transition ${
+                  group.id === activeGroup.id
+                    ? "border-[#d8c993]/50 bg-[#6e6545]/34 text-white"
+                    : "border-[#d8c993]/12 bg-[#4d6378]/18 text-[#c6ced8] hover:border-[#d8c993]/32 hover:text-white"
+                }`}
+                key={group.id}
+                onClick={() => handleGroupChange(group)}
+                type="button"
+              >
+                <span className="font-semibold">{group.label}</span>
+                <span className="text-xs text-[#ead69d]">{group.items.length}</span>
+              </button>
+            ))}
           </div>
         </aside>
 
         <section className="border border-[#d8c993]/16 bg-[#263b50]/52 p-3">
-          <div className="mb-3 flex items-end justify-between border-b border-[#c7b277]/16 pb-2">
-            <div>
-              <div className="text-sm font-semibold text-[#ead69d]">{activeGroup.label}</div>
-              <div className="mt-1 text-xs text-[#aeb8c4]">
-                当前分类记录：{filteredItems.length} / {activeGroup.items.length}
-              </div>
-            </div>
+          <div className="mb-3 border-b border-[#c7b277]/16 pb-2">
+            <div className="text-sm font-semibold text-[#ead69d]">{activeGroup.label}</div>
+            <div className="mt-1 text-xs text-[#aeb8c4]">当前分类记录：{filteredItems.length} / {activeGroup.items.length}</div>
           </div>
-
-          <div className="max-h-[450px] space-y-2 overflow-y-auto pr-1">
-            {filteredItems.length > 0 ? (
-              filteredItems.map((item) => {
-                const isSelected = selectedItem?.id === item.id;
-
-                return (
-                  <button
-                    className={`w-full border p-3 text-left transition ${
-                      isSelected
-                        ? "border-[#d8c993]/50 bg-[#596f84]/36"
-                        : "border-[#d8c993]/12 bg-[#40566c]/22 hover:border-[#d8c993]/30 hover:bg-[#52687d]/26"
-                    }`}
-                    key={item.id}
-                    onClick={() => setSelectedItemId(item.id)}
-                    type="button"
-                  >
-                    <div className="truncate text-sm font-semibold text-white">{item.title}</div>
-                    <div className="mt-2 flex items-center justify-between text-[11px]">
-                      <span className="truncate text-[#c7b277]">{item.category}</span>
-                      <span className="text-[#c6ced8]">关键词 {item.keywords?.length ?? 0}</span>
-                    </div>
-                  </button>
-                );
-              })
-            ) : (
+          <div className="max-h-[490px] space-y-2 overflow-y-auto pr-1">
+            {filteredItems.length > 0 ? filteredItems.map((item) => (
+              <button
+                className={`w-full border p-3 text-left transition ${
+                  selectedItem?.id === item.id
+                    ? "border-[#d8c993]/50 bg-[#596f84]/36"
+                    : "border-[#d8c993]/12 bg-[#40566c]/22 hover:border-[#d8c993]/30 hover:bg-[#52687d]/26"
+                }`}
+                key={item.id}
+                onClick={() => { setSelectedItemId(item.id); setEditingItem(null); }}
+                type="button"
+              >
+                <div className="truncate text-sm font-semibold text-white">{item.title}</div>
+                <div className="mt-2 flex items-center justify-between text-[11px]">
+                  <span className="truncate text-[#c7b277]">{item.category}</span>
+                  <span className="text-[#c6ced8]">关键词 {item.keywords?.length ?? 0}</span>
+                </div>
+              </button>
+            )) : (
               <div className="border border-[#d8c993]/12 bg-[#40566c]/18 p-4 text-sm text-[#c6ced8]">未找到匹配记录。</div>
             )}
           </div>
         </section>
 
         <article className="border border-[#d8c993]/16 bg-[#263b50]/58 p-4">
-          {selectedItem ? (
-            <div className="space-y-4">
-              <div className="border-b border-[#c7b277]/16 pb-3">
-                <div className="text-xs tracking-[0.16em] text-[#c7b277]">条目详情</div>
-                <h3 className="mt-2 text-xl font-semibold text-[#ead69d]">{selectedItem.title}</h3>
-                <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                  <span className="border border-[#d8c993]/20 bg-[#52687d]/24 px-2 py-1 text-[#d7dee8]">
-                    类型：{selectedItem.category}
-                  </span>
-                  <span className="border border-[#d8c993]/20 bg-[#52687d]/24 px-2 py-1 text-[#d7dee8]">
-                    ID：{selectedItem.id}
-                  </span>
+          {editingItem ? (
+            <form className="space-y-3" onSubmit={saveItem}>
+              <div className="flex items-center justify-between border-b border-[#c7b277]/16 pb-3">
+                <div className="text-sm font-semibold text-[#ead69d]">{activeGroup.items.some((item) => item.id === editingItem.id) ? "编辑知识条目" : "新增知识条目"}</div>
+                <div className="flex gap-2">
+                  <button className="h-8 border border-[#d8c993]/24 px-3 text-xs text-[#c6ced8] hover:text-white" onClick={() => setEditingItem(null)} type="button">取消</button>
+                  <button className="h-8 border border-[#d8c993]/46 bg-gradient-to-b from-[#9f9880] to-[#6f6d63] px-4 text-xs font-semibold text-[#f7e9bd]" type="submit">保存</button>
                 </div>
               </div>
-
-              <div>
-                <div className="mb-2 text-sm font-semibold text-[#ead69d]">关键词</div>
-                <div className="flex flex-wrap gap-2">
-                  {(selectedItem.keywords ?? []).length > 0 ? (
-                    selectedItem.keywords?.map((keyword) => (
-                      <span className="border border-[#d8c993]/18 bg-[#6e6545]/22 px-2 py-1 text-xs text-[#edf2f7]" key={keyword}>
-                        {keyword}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-sm text-[#aeb8c4]">暂无关键词</span>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <div className="mb-2 text-sm font-semibold text-[#ead69d]">摘要</div>
-                <p className="border border-[#d8c993]/12 bg-[#40566c]/18 p-3 text-sm leading-6 text-[#d7dee8]">
-                  {selectedItem.summary || selectedItem.conclusion || "暂无摘要"}
-                </p>
-              </div>
-
-              <div>
-                <div className="mb-2 text-sm font-semibold text-[#ead69d]">原文内容</div>
-                <div className="max-h-[220px] overflow-y-auto whitespace-pre-wrap border border-[#d8c993]/12 bg-[#1f3246]/46 p-3 text-sm leading-6 text-[#d7dee8]">
-                  {selectedItem.content || selectedItem.reason || "暂无内容"}
-                </div>
-              </div>
-
+              <label className="block text-xs text-[#c7b277]">标题<input className={fieldClass} onChange={(event) => updateEditingField("title", event.target.value)} required value={editingItem.title} /></label>
+              <label className="block text-xs text-[#c7b277]">分类<input className={fieldClass} onChange={(event) => updateEditingField("category", event.target.value)} value={editingItem.category} /></label>
+              <label className="block text-xs text-[#c7b277]">关键词（逗号、顿号或换行分隔）<textarea className={`${fieldClass} min-h-16`} onChange={(event) => updateEditingList("keywords", event.target.value)} value={(editingItem.keywords ?? []).join("，")} /></label>
+              <label className="block text-xs text-[#c7b277]">摘要<textarea className={`${fieldClass} min-h-20`} onChange={(event) => updateEditingField("summary", event.target.value)} value={editingItem.summary ?? ""} /></label>
+              <label className="block text-xs text-[#c7b277]">内容<textarea className={`${fieldClass} min-h-28`} onChange={(event) => updateEditingField("content", event.target.value)} value={editingItem.content ?? ""} /></label>
               <div className="grid grid-cols-2 gap-3">
+                <label className="block text-xs text-[#c7b277]">步骤（每行一条）<textarea className={`${fieldClass} min-h-24`} onChange={(event) => updateEditingList("steps", event.target.value)} value={(editingItem.steps ?? []).join("\n")} /></label>
+                <label className="block text-xs text-[#c7b277]">风险（每行一条）<textarea className={`${fieldClass} min-h-24`} onChange={(event) => updateEditingList("risk", event.target.value)} value={(editingItem.risk ?? []).join("\n")} /></label>
+              </div>
+            </form>
+          ) : selectedItem ? (
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-4 border-b border-[#c7b277]/16 pb-3">
                 <div>
-                  <div className="mb-2 text-sm font-semibold text-[#ead69d]">步骤</div>
-                  <div className="min-h-24 border border-[#d8c993]/12 bg-[#40566c]/18 p-3 text-sm leading-6 text-[#d7dee8]">
-                    {(selectedItem.steps ?? []).length > 0 ? (
-                      <ol className="list-decimal space-y-1 pl-4">
-                        {selectedItem.steps?.map((step) => <li key={step}>{step}</li>)}
-                      </ol>
-                    ) : (
-                      <span className="text-[#aeb8c4]">暂无步骤</span>
-                    )}
-                  </div>
+                  <div className="text-xs tracking-[0.16em] text-[#c7b277]">条目详情</div>
+                  <h3 className="mt-2 text-xl font-semibold text-[#ead69d]">{selectedItem.title}</h3>
                 </div>
-
-                <div>
-                  <div className="mb-2 text-sm font-semibold text-[#ead69d]">风险</div>
-                  <div className="min-h-24 border border-[#d8c993]/12 bg-[#40566c]/18 p-3 text-sm leading-6 text-[#d7dee8]">
-                    {(selectedItem.risk ?? []).length > 0 ? (
-                      <ul className="list-disc space-y-1 pl-4">
-                        {selectedItem.risk?.map((risk) => <li key={risk}>{risk}</li>)}
-                      </ul>
-                    ) : (
-                      <span className="text-[#aeb8c4]">暂无风险</span>
-                    )}
-                  </div>
+                <div className="flex gap-2">
+                  <button className="h-8 border border-[#d8c993]/28 bg-[#52687d]/22 px-3 text-xs text-[#d7dee8] hover:text-white" onClick={startEdit} type="button">编辑</button>
+                  <button className="h-8 border border-[#c58d79]/35 bg-[#6b3f3f]/24 px-3 text-xs text-[#e5c3b8] hover:border-[#c58d79]/60 hover:text-white" onClick={deleteItem} type="button">删除</button>
                 </div>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs">
+                <span className="border border-[#d8c993]/20 bg-[#52687d]/24 px-2 py-1 text-[#d7dee8]">类型：{selectedItem.category}</span>
+                <span className="border border-[#d8c993]/20 bg-[#52687d]/24 px-2 py-1 text-[#d7dee8]">ID：{selectedItem.id}</span>
+              </div>
+              <div><div className="mb-2 text-sm font-semibold text-[#ead69d]">关键词</div><div className="flex flex-wrap gap-2">{(selectedItem.keywords ?? []).length > 0 ? selectedItem.keywords?.map((keyword, index) => <span className="border border-[#d8c993]/18 bg-[#6e6545]/22 px-2 py-1 text-xs text-[#edf2f7]" key={`${keyword}-${index}`}>{keyword}</span>) : <span className="text-sm text-[#aeb8c4]">暂无关键词</span>}</div></div>
+              <div><div className="mb-2 text-sm font-semibold text-[#ead69d]">摘要</div><p className="border border-[#d8c993]/12 bg-[#40566c]/18 p-3 text-sm leading-6 text-[#d7dee8]">{selectedItem.summary || "暂无摘要"}</p></div>
+              <div><div className="mb-2 text-sm font-semibold text-[#ead69d]">原文内容</div><div className="max-h-[180px] overflow-y-auto whitespace-pre-wrap border border-[#d8c993]/12 bg-[#1f3246]/46 p-3 text-sm leading-6 text-[#d7dee8]">{selectedItem.content || "暂无内容"}</div></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><div className="mb-2 text-sm font-semibold text-[#ead69d]">步骤</div><div className="min-h-24 border border-[#d8c993]/12 bg-[#40566c]/18 p-3 text-sm leading-6 text-[#d7dee8]">{(selectedItem.steps ?? []).length > 0 ? <ol className="list-decimal space-y-1 pl-4">{selectedItem.steps?.map((step, index) => <li key={`${step}-${index}`}>{step}</li>)}</ol> : <span className="text-[#aeb8c4]">暂无步骤</span>}</div></div>
+                <div><div className="mb-2 text-sm font-semibold text-[#ead69d]">风险</div><div className="min-h-24 border border-[#d8c993]/12 bg-[#40566c]/18 p-3 text-sm leading-6 text-[#d7dee8]">{(selectedItem.risk ?? []).length > 0 ? <ul className="list-disc space-y-1 pl-4">{selectedItem.risk?.map((risk, index) => <li key={`${risk}-${index}`}>{risk}</li>)}</ul> : <span className="text-[#aeb8c4]">暂无风险</span>}</div></div>
               </div>
             </div>
           ) : (
-            <div className="text-sm text-[#c6ced8]">请选择一条知识记录。</div>
+            <div className="text-sm text-[#c6ced8]">请选择一条知识记录，或新增条目。</div>
           )}
         </article>
       </div>
