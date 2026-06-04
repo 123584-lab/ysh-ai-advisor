@@ -299,11 +299,59 @@ function createUnlockConditionAnswer(question: string, playerState: PlayerState)
 }
 
 function createKnowledgeAnswer(knowledge: KnowledgeItem): AdvisorAnswer {
+  const normalizeText = (value: string) => value.replace(/\s+/g, "").replace(/[，。；：、,.!！?？]/g, "");
+  const isDuplicate = (value: string, references: string[]) => {
+    const normalizedValue = normalizeText(value);
+    if (!normalizedValue) return true;
+
+    return references.some((reference) => {
+      const normalizedReference = normalizeText(reference);
+      return (
+        normalizedReference === normalizedValue ||
+        normalizedReference.includes(normalizedValue) ||
+        normalizedValue.includes(normalizedReference)
+      );
+    });
+  };
+  const splitSentences = (value: string) =>
+    value
+      .split(/(?<=[。！？；])|\n+/)
+      .map((sentence) => sentence.trim())
+      .filter(Boolean);
+
+  const conclusion = knowledge.conclusion.trim() || knowledge.title;
+  const reasonSentences = splitSentences(knowledge.reason)
+    .filter((sentence) => !isDuplicate(sentence, [conclusion]))
+    .slice(0, 2);
+  const reason =
+    reasonSentences.join("") ||
+    `该条建议依据“${knowledge.title}”知识记录整理，具体规则以知识库原文为准。`;
+
+  const sourceSteps = knowledge.steps
+    .map((step) => step.trim())
+    .filter(Boolean);
+  const stepsRepeatSource =
+    sourceSteps.length === 0 ||
+    sourceSteps.some((step) => isDuplicate(step, [conclusion, knowledge.reason]));
+  const fallbackSteps = [
+    `先查看“${knowledge.title}”相关说明。`,
+    "再结合当前军情核对适用条件。",
+    "确认条件满足后，按知识库建议执行。",
+  ];
+  const steps = (stepsRepeatSource ? fallbackSteps : sourceSteps)
+    .filter((step) => !isDuplicate(step, [conclusion, reason]))
+    .slice(0, 3);
+
+  const risks = knowledge.risk
+    .map((risk) => risk.trim())
+    .filter((risk) => !isDuplicate(risk, [conclusion, reason, ...steps]))
+    .slice(0, 3);
+
   return {
-    conclusion: knowledge.conclusion,
-    reason: knowledge.reason,
-    steps: knowledge.steps,
-    risks: knowledge.risk,
+    conclusion,
+    reason,
+    steps: steps.length > 0 ? steps : ["结合当前军情核对知识库记录后再执行。"],
+    risks: risks.length > 0 ? risks : ["请以知识库原文为准，未收录内容不要编造。"],
   };
 }
 
