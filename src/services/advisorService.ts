@@ -397,9 +397,11 @@ export function generateAdvisorAnswer(
   history: ChatHistory[],
 ): AdvisorAnswer {
   const text = question.trim();
+  const matchedKnowledge = findKnowledgeByQuestion(text);
+  if (matchedKnowledge) return createKnowledgeAnswer(matchedKnowledge);
+
   const intent = detectQuestionIntent(text);
   const context = getQuestionContext(text);
-  const matchedKnowledge = findKnowledgeByQuestion(text);
 
   console.log("Question:", question);
   console.log("Intent:", intent);
@@ -440,7 +442,6 @@ export function generateAdvisorAnswer(
       break;
   }
 
-  if (matchedKnowledge) return createKnowledgeAnswer(matchedKnowledge);
   if (includesAny(text, ["我现在该做什么", "下一步做什么", "现在优先干什么", "发展", "开荒", "优先"])) {
     return createPlayerStateAnswer(playerState);
   }
